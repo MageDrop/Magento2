@@ -6,7 +6,8 @@ if (!$block->isPreviewActive()) {
 $stopUrl = $block->getUrl('magedrop/preview/stop');
 ?>
 <div id="magedrop-preview-bar">
-    <div>
+    <div style="display: flex; align-items: center;">
+        <img src="<?= $block->escapeUrl($block->getViewFileUrl('MageDrop_Magento2::images/logo-icon-white.svg')) ?>" alt="MageDrop" class="magedrop-preview-bar__logo">
         <span class="magedrop-preview-bar__label"><?= $block->escapeHtml(__('Preview Mode')) ?></span>
         <span class="magedrop-preview-bar__message"><?= $block->escapeHtml(__('Changes are not live — only you can see this.')) ?></span>
     </div>

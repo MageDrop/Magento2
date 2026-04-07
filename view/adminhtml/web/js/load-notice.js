@@ -13,7 +13,7 @@ define([
         if (!releaseId) return;
 
         var html = '<div id="magedrop-load-notice" style="' +
-            'background: linear-gradient(135deg, #6366f1, #9333ea);' +
+            'background: #0f172a;' +
             'color: #fff;' +
             'padding: 12px 20px;' +
             'margin: 0 0 20px;' +

@@ -55,7 +55,7 @@ define([
                             content: '<p>' + $t('%1 change(s) detected.').replace('%1', response.change_count) + '</p>' +
                                      '<p style="margin-top: 10px;">' +
                                      '<a href="' + response.preview_url + '" target="_blank" id="magedrop-open-preview" ' +
-                                     'style="display: inline-block; background: #7c3aed; color: white; padding: 8px 20px; border-radius: 5px; ' +
+                                     'style="display: inline-block; background: #0f172a; color: white; padding: 8px 20px; border-radius: 5px; ' +
                                      'text-decoration: none; font-weight: 600; font-size: 14px;">' +
                                      $t('Open Preview') + '</a></p>' +
                                      '<p style="margin-top: 12px;">' +
@@ -64,7 +64,7 @@ define([
                                      '</p>' +
                                      '<p style="margin-top: 6px;">' +
                                      '<button type="button" id="magedrop-copy-url" ' +
-                                     'style="background: none; border: none; color: #7c3aed; cursor: pointer; font-size: 12px; padding: 0;">' +
+                                     'style="background: none; border: none; color: #0f172a; cursor: pointer; font-size: 12px; padding: 0;">' +
                                      $t('Copy link') + '</button>' +
                                      '<span id="magedrop-copy-confirm" style="display: none; color: #16a34a; font-size: 12px; margin-left: 8px;">' +
                                      $t('Copied!') + '</span></p>' +
