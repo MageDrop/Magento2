@@ -1,0 +1,52 @@
+#magedrop .action-default.magedrop-button {
+    background: #0f172a;
+    border: none;
+    color: #fff;
+    padding-left: 36px;
+    position: relative;
+}
+
+#magedrop .action-default.magedrop-button::before {
+    content: '';
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 16px;
+    height: 16px;
+    background: url('../images/logo-icon-white.svg') no-repeat center / contain;
+}
+
+#magedrop .action-default.magedrop-button:hover {
+    background: #1e293b;
+    color: #fff;
+}
+
+#magedrop.actions-split {
+    display: inline-flex;
+    align-items: stretch;
+}
+
+#magedrop .action-toggle.magedrop-button {
+    background: #0f172a;
+    border: none;
+    border-left: 1px solid rgba(255, 255, 255, 0.2);
+    box-sizing: border-box;
+}
+
+#magedrop .action-toggle.magedrop-button:hover {
+    background: #1e293b;
+}
+
+#magedrop .action-toggle.magedrop-button::before {
+    border-top-color: #fff;
+}
+
+.admin__page-nav._collapsed.magedrop-tab .title,
+.admin__page-nav._collapsed._show.magedrop-tab .title {
+    background-image: url('../images/logo-icon-black.svg');
+    background-position: 15px center;
+    background-repeat: no-repeat;
+    background-size: auto 30%;
+    text-indent: 40px;
+}
