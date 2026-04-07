@@ -1,0 +1,43 @@
+#magedrop .action-default.magedrop-button {
+    background: linear-gradient(135deg, #6366f1, #9333ea);
+    border: none;
+    color: #fff;
+    padding-left: 34px;
+    position: relative;
+}
+
+#magedrop .action-default.magedrop-button::before {
+    content: '';
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 16px;
+    height: 16px;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='rgba(255,255,255,0.25)'/%3E%3Cpath d='M16 8 L16 24 M10 14 L16 8 L22 14' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E") no-repeat center / contain;
+}
+
+#magedrop .action-default.magedrop-button:hover {
+    background: linear-gradient(135deg, #4f46e5, #7e22ce);
+    color: #fff;
+}
+
+#magedrop.actions-split {
+    display: inline-flex;
+    align-items: stretch;
+}
+
+#magedrop .action-toggle.magedrop-button {
+    background: linear-gradient(135deg, #6366f1, #9333ea);
+    border: none;
+    border-left: 1px solid rgba(255, 255, 255, 0.3);
+    box-sizing: border-box;
+}
+
+#magedrop .action-toggle.magedrop-button:hover {
+    background: linear-gradient(135deg, #4f46e5, #7e22ce);
+}
+
+#magedrop .action-toggle.magedrop-button::before {
+    border-top-color: #fff;
+}

@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:framework:ObjectManager/etc/config.xsd">
+
+    <preference for="MageDrop\Magento2\Api\PingInterface" type="MageDrop\Magento2\Model\Ping"/>
+
+    <!-- Fix FPC load to use the original Identifier (reads vary cookie from request).
+         Magento 2.4.8-p4 changed the global IdentifierInterface preference to IdentifierForSave
+         which uses HttpContext — empty at load time, causing all pages to share the same cache key. -->
+    <type name="Magento\Framework\App\PageCache\Kernel">
+        <arguments>
+            <argument name="identifier" xsi:type="object">Magento\Framework\App\PageCache\Identifier</argument>
+        </arguments>
+    </type>
+
+</config>

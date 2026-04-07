@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:framework:ObjectManager/etc/config.xsd">
+
+    <!-- Set preview HttpContext from session on every request -->
+    <type name="Magento\Framework\App\Action\Action">
+        <plugin name="magedrop_preview_context"
+                type="MageDrop\Magento2\Plugin\App\Action\PreviewContext"
+                sortOrder="10"/>
+    </type>
+
+    <!-- Preview: overlay staged data on entity load -->
+    <type name="Magento\Cms\Model\Page">
+        <plugin name="magedrop_preview_cms_page"
+                type="MageDrop\Magento2\Plugin\Frontend\CmsPagePlugin"
+                sortOrder="100"/>
+    </type>
+
+    <type name="Magento\Cms\Model\Block">
+        <plugin name="magedrop_preview_cms_block"
+                type="MageDrop\Magento2\Plugin\Frontend\CmsBlockPlugin"
+                sortOrder="100"/>
+    </type>
+
+</config>

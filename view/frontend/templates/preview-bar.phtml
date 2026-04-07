@@ -1,0 +1,24 @@
+<?php
+/** @var \MageDrop\Magento2\Block\PreviewBar $block */
+if (!$block->isPreviewActive()) {
+    return;
+}
+$postData = json_encode([
+    'action' => $block->getUrl('magedrop/preview/stop'),
+    'data' => [
+        'form_key' => $block->getFormKey(),
+    ],
+]);
+?>
+<div id="magedrop-preview-bar">
+    <div>
+        <span class="magedrop-preview-bar__label"><?= $block->escapeHtml(__('Preview Mode')) ?></span>
+        <span class="magedrop-preview-bar__message"><?= $block->escapeHtml(__('Changes are not live — only you can see this.')) ?></span>
+    </div>
+    <a href="#"
+       class="magedrop-preview-bar__exit"
+       data-post='<?= /* @noEscape */ $postData ?>'>
+        <?= $block->escapeHtml(__('Exit Preview')) ?>
+    </a>
+</div>
+<div id="magedrop-preview-bar-spacer"></div>

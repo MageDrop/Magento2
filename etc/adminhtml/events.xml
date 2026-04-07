@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:framework:Event/etc/events.xsd">
+
+    <event name="cms_page_save_after">
+        <observer name="magedrop_revision_cms_page"
+                  instance="MageDrop\Magento2\Observer\CmsSaveRevision\CmsPage"/>
+    </event>
+
+    <event name="cms_block_save_after">
+        <observer name="magedrop_revision_cms_block"
+                  instance="MageDrop\Magento2\Observer\CmsSaveRevision\CmsBlock"/>
+    </event>
+
+</config>

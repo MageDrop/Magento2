@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<page xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:noNamespaceSchemaLocation="urn:magento:framework:View/Layout/etc/page_configuration.xsd">
+    <head>
+        <css src="MageDrop_Magento2::css/preview-bar.css"/>
+    </head>
+    <body>
+        <referenceContainer name="after.body.start">
+            <block class="MageDrop\Magento2\Block\PreviewBar"
+                   name="magedrop.preview.bar"
+                   template="MageDrop_Magento2::preview-bar.phtml"/>
+        </referenceContainer>
+    </body>
+</page>

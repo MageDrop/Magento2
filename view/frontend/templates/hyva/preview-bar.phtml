@@ -1,0 +1,20 @@
+<?php
+/** @var \MageDrop\Magento2\Block\PreviewBar $block */
+if (!$block->isPreviewActive()) {
+    return;
+}
+$stopUrl = $block->getUrl('magedrop/preview/stop');
+?>
+<div id="magedrop-preview-bar">
+    <div>
+        <span class="magedrop-preview-bar__label"><?= $block->escapeHtml(__('Preview Mode')) ?></span>
+        <span class="magedrop-preview-bar__message"><?= $block->escapeHtml(__('Changes are not live — only you can see this.')) ?></span>
+    </div>
+    <form action="<?= $block->escapeUrl($stopUrl) ?>" method="post" class="magedrop-preview-bar__form">
+        <?= $block->getBlockHtml('formkey') ?>
+        <button type="submit" class="magedrop-preview-bar__exit">
+            <?= $block->escapeHtml(__('Exit Preview')) ?>
+        </button>
+    </form>
+</div>
+<div id="magedrop-preview-bar-spacer"></div>
