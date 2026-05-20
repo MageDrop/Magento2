@@ -5,6 +5,18 @@ All notable changes to `MageDrop_Magento2` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.6] - 2026-05-20
+
+### Fixed
+- Identifier-based block and page loads now bypass the storeId-gated `is_active=1` filter during preview. v1.0.5 only covered numeric `block_id` / `page_id` lookups; identifier lookups (`{{block id="..."}}`, `Cms\Block\BlockByIdentifier`, the CMS router's `Page::checkIdentifier`) still hit the filter and silently returned empty for disabled entities, so staged `is_active=1` had no visible effect.
+- Deterministic tie-breaker (newest `block_id` / `page_id`) when the same identifier exists in the same store more than once — picks the latest entity rather than an arbitrary legacy duplicate.
+
+### Changed
+- `CmsBlockPlugin` and `CmsPagePlugin` consolidate their numeric and identifier resolve paths into a single helper that switches the lookup column on `is_numeric($modelId)`. No behaviour change for callers; less duplication internally.
+
+### Requires
+- SaaS app commit `0e72bf0` or later — the preview/validate endpoint must translate REST-style field names (e.g. `active`) back to Magento DB column names (e.g. `is_active`) before returning, otherwise the overlay sets a field the model doesn't read.
+
 ## [1.0.5] - 2026-05-20
 
 ### Added
