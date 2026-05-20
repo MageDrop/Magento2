@@ -23,8 +23,9 @@ class CmsPagePlugin
     }
 
     /**
-     * Same pattern as CmsBlockPlugin: verify store membership ourselves, then
-     * drop storeId so ResourceModel\Page::_getLoadSelect skips the is_active filter.
+     * Same pattern as CmsBlockPlugin: resolve the lookup to a page_id ourselves
+     * (store-scoped, no is_active filter), then load by primary key with storeId
+     * cleared so neither the store nor is_active SQL filters apply.
      */
     public function aroundLoad(Page $subject, callable $proceed, $modelId, $field = null): Page
     {
@@ -34,13 +35,15 @@ class CmsPagePlugin
 
         $storeId = $subject->getStoreId();
 
-        if ($storeId !== null && is_numeric($modelId)) {
-            if (!$this->pageExistsInStore((int) $modelId, (int) $storeId)) {
+        if ($storeId !== null) {
+            $resolvedId = $this->resolvePageId($modelId, (int) $storeId);
+
+            if (!$resolvedId) {
                 return $proceed($modelId, $field);
             }
 
             $subject->setStoreId(null);
-            $result = $proceed($modelId, $field);
+            $result = $proceed($resolvedId, null);
             $subject->setStoreId($storeId);
         } else {
             $result = $proceed($modelId, $field);
@@ -53,17 +56,36 @@ class CmsPagePlugin
         return $result;
     }
 
-    private function pageExistsInStore(int $pageId, int $storeId): bool
+    /**
+     * Resolve a page lookup (by page_id or by identifier) to a numeric page_id,
+     * scoped to the given store but without the is_active filter. Picks
+     * specific-store over default-store, and the newest page_id as a deterministic
+     * tie-breaker when duplicate identifiers exist in the same store.
+     */
+    private function resolvePageId($modelId, int $storeId): ?int
     {
         $linkField = $this->metadataPool->getMetadata(PageInterface::class)->getLinkField();
+        $lookupField = is_numeric($modelId) ? $linkField : 'identifier';
         $connection = $this->resourceConnection->getConnection();
 
         $select = $connection->select()
-            ->from($this->resourceConnection->getTableName('cms_page_store'), [$linkField])
-            ->where($linkField . ' = ?', $pageId)
-            ->where('store_id IN (?)', [$storeId, Store::DEFAULT_STORE_ID])
+            ->from(
+                ['cp' => $this->resourceConnection->getTableName('cms_page')],
+                [$linkField]
+            )
+            ->join(
+                ['cps' => $this->resourceConnection->getTableName('cms_page_store')],
+                'cp.' . $linkField . ' = cps.' . $linkField,
+                []
+            )
+            ->where('cp.' . $lookupField . ' = ?', $modelId)
+            ->where('cps.store_id IN (?)', [$storeId, Store::DEFAULT_STORE_ID])
+            ->order('cps.store_id DESC')
+            ->order('cp.' . $linkField . ' DESC')
             ->limit(1);
 
-        return (bool) $connection->fetchOne($select);
+        $pageId = $connection->fetchOne($select);
+
+        return $pageId !== false ? (int) $pageId : null;
     }
 }

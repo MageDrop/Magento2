@@ -25,9 +25,9 @@ class CmsBlockPlugin
     /**
      * The is_active=1 filter in ResourceModel\Block::_getLoadSelect is gated on
      * storeId being set. We need to bypass that filter for preview without losing
-     * store scoping. Approach: verify store membership ourselves (one short query
-     * against cms_block_store with no is_active condition), then drop storeId on
-     * the subject so the resource load skips both filters.
+     * store scoping. Approach: resolve the requested block to a block_id ourselves
+     * (store-scoped, no is_active filter), then load by primary key with storeId
+     * cleared so neither the store nor is_active SQL filters apply.
      */
     public function aroundLoad(Block $subject, callable $proceed, $modelId, $field = null): Block
     {
@@ -37,13 +37,15 @@ class CmsBlockPlugin
 
         $storeId = $subject->getStoreId();
 
-        if ($storeId !== null && is_numeric($modelId)) {
-            if (!$this->blockExistsInStore((int) $modelId, (int) $storeId)) {
+        if ($storeId !== null) {
+            $resolvedId = $this->resolveBlockId($modelId, (int) $storeId);
+
+            if (!$resolvedId) {
                 return $proceed($modelId, $field);
             }
 
             $subject->setStoreId(null);
-            $result = $proceed($modelId, $field);
+            $result = $proceed($resolvedId, null);
             $subject->setStoreId($storeId);
         } else {
             $result = $proceed($modelId, $field);
@@ -56,17 +58,36 @@ class CmsBlockPlugin
         return $result;
     }
 
-    private function blockExistsInStore(int $blockId, int $storeId): bool
+    /**
+     * Resolve a block lookup (by block_id or by identifier) to a numeric block_id,
+     * scoped to the given store but without the is_active filter. Picks
+     * specific-store over default-store, and the newest block_id as a deterministic
+     * tie-breaker when duplicate identifiers exist in the same store.
+     */
+    private function resolveBlockId($modelId, int $storeId): ?int
     {
         $linkField = $this->metadataPool->getMetadata(BlockInterface::class)->getLinkField();
+        $lookupField = is_numeric($modelId) ? $linkField : 'identifier';
         $connection = $this->resourceConnection->getConnection();
 
         $select = $connection->select()
-            ->from($this->resourceConnection->getTableName('cms_block_store'), [$linkField])
-            ->where($linkField . ' = ?', $blockId)
-            ->where('store_id IN (?)', [$storeId, Store::DEFAULT_STORE_ID])
+            ->from(
+                ['cb' => $this->resourceConnection->getTableName('cms_block')],
+                [$linkField]
+            )
+            ->join(
+                ['cbs' => $this->resourceConnection->getTableName('cms_block_store')],
+                'cb.' . $linkField . ' = cbs.' . $linkField,
+                []
+            )
+            ->where('cb.' . $lookupField . ' = ?', $modelId)
+            ->where('cbs.store_id IN (?)', [$storeId, Store::DEFAULT_STORE_ID])
+            ->order('cbs.store_id DESC')
+            ->order('cb.' . $linkField . ' DESC')
             ->limit(1);
 
-        return (bool) $connection->fetchOne($select);
+        $blockId = $connection->fetchOne($select);
+
+        return $blockId !== false ? (int) $blockId : null;
     }
 }

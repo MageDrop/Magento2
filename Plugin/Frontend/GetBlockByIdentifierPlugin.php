@@ -46,6 +46,7 @@ class GetBlockByIdentifierPlugin
         if (!$this->state->isActive()) {
             return $proceed($identifier, $storeId);
         }
+
         try {
             $result = $proceed($identifier, $storeId);
         } catch (NoSuchEntityException $e) {
@@ -54,12 +55,15 @@ class GetBlockByIdentifierPlugin
                 throw $e;
             }
         }
+
         $this->overlay->applyTo($result, 'cms_block');
+
         if (!$result->isActive()) {
             throw new NoSuchEntityException(
                 __('The CMS block with the "%1" ID doesn\'t exist.', $identifier)
             );
         }
+
         return $result;
     }
 
@@ -97,6 +101,7 @@ class GetBlockByIdentifierPlugin
             ->where('cb.identifier = ?', $identifier)
             ->where('cbs.store_id IN (?)', [(int) $storeId, Store::DEFAULT_STORE_ID])
             ->order('cbs.store_id DESC')
+            ->order('cb.' . $linkField . ' DESC')
             ->limit(1);
 
         $blockId = $connection->fetchOne($select);

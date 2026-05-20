@@ -61,6 +61,7 @@ class PageCheckIdentifierPlugin
             ->where('cp.identifier = ?', (string) $identifier)
             ->where('cps.store_id IN (?)', [Store::DEFAULT_STORE_ID, (int) $storeId])
             ->order('cps.store_id DESC')
+            ->order('cp.' . $idField . ' DESC')
             ->limit(1);
 
         $pageId = $connection->fetchOne($select);
