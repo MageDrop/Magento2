@@ -4,68 +4,69 @@ declare(strict_types=1);
 
 namespace MageDrop\Magento2\Plugin\Frontend;
 
-use MageDrop\Magento2\Block\PreviewBar;
-use MageDrop\Magento2\Model\Service\ApiClient;
+use MageDrop\Magento2\Model\Preview\Overlay;
+use MageDrop\Magento2\Model\Preview\State;
+use Magento\Cms\Api\Data\BlockInterface;
 use Magento\Cms\Model\Block;
-use Magento\Framework\App\Http\Context as HttpContext;
-use Psr\Log\LoggerInterface;
+use Magento\Framework\App\ResourceConnection;
+use Magento\Framework\EntityManager\MetadataPool;
+use Magento\Store\Model\Store;
 
 class CmsBlockPlugin
 {
-    private array $appliedBlocks = [];
-
     public function __construct(
-        private HttpContext $httpContext,
-        private ApiClient $apiClient,
-        private LoggerInterface $logger
+        private State $state,
+        private Overlay $overlay,
+        private ResourceConnection $resourceConnection,
+        private MetadataPool $metadataPool
     ) {
     }
 
-    public function afterLoad(Block $subject, Block $result): Block
+    /**
+     * The is_active=1 filter in ResourceModel\Block::_getLoadSelect is gated on
+     * storeId being set. We need to bypass that filter for preview without losing
+     * store scoping. Approach: verify store membership ourselves (one short query
+     * against cms_block_store with no is_active condition), then drop storeId on
+     * the subject so the resource load skips both filters.
+     */
+    public function aroundLoad(Block $subject, callable $proceed, $modelId, $field = null): Block
     {
-        return $this->applyPreview($result);
+        if (!$this->state->isActive()) {
+            return $proceed($modelId, $field);
+        }
+
+        $storeId = $subject->getStoreId();
+
+        if ($storeId !== null && is_numeric($modelId)) {
+            if (!$this->blockExistsInStore((int) $modelId, (int) $storeId)) {
+                return $proceed($modelId, $field);
+            }
+
+            $subject->setStoreId(null);
+            $result = $proceed($modelId, $field);
+            $subject->setStoreId($storeId);
+        } else {
+            $result = $proceed($modelId, $field);
+        }
+
+        if ($result->getId()) {
+            $this->overlay->applyTo($result, 'cms_block');
+        }
+
+        return $result;
     }
 
-    private function applyPreview(Block $block): Block
+    private function blockExistsInStore(int $blockId, int $storeId): bool
     {
-        $contextValue = $this->httpContext->getValue(PreviewBar::CONTEXT_PREVIEW);
+        $linkField = $this->metadataPool->getMetadata(BlockInterface::class)->getLinkField();
+        $connection = $this->resourceConnection->getConnection();
 
-        if (!$contextValue) {
-            return $block;
-        }
+        $select = $connection->select()
+            ->from($this->resourceConnection->getTableName('cms_block_store'), [$linkField])
+            ->where($linkField . ' = ?', $blockId)
+            ->where('store_id IN (?)', [$storeId, Store::DEFAULT_STORE_ID])
+            ->limit(1);
 
-        // Value is "releaseId:changesHash" — extract the release ID
-        $releaseId = (int) explode(':', (string) $contextValue, 2)[0];
-
-        if (!$releaseId) {
-            return $block;
-        }
-
-        $blockId = $block->getId();
-        if (!$blockId || isset($this->appliedBlocks[$blockId])) {
-            return $block;
-        }
-
-        $this->appliedBlocks[$blockId] = true;
-
-        try {
-            $changes = $this->apiClient->getPreviewChanges(
-                (int) $releaseId,
-                'cms_block',
-                (string) $blockId
-            );
-
-            foreach ($changes as $field => $value) {
-                $block->setData($field, $value);
-            }
-
-            if (!empty($changes)) {
-                $this->logger->info('MageDrop preview: applied ' . count($changes) . ' changes to CMS block ' . $blockId);
-            }
-        } catch (\Exception $e) {
-            $this->logger->error('MageDrop preview error (cms_block): ' . $e->getMessage());
-        }
-
-        return $block;
+        return (bool) $connection->fetchOne($select);
     }
 }

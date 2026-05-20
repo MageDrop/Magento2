@@ -9,16 +9,28 @@
                 sortOrder="10"/>
     </type>
 
-    <!-- Preview: overlay staged data on entity load -->
+    <!-- Preview: overlay staged data on Cms\Model\Page::load, and let the CMS
+         router resolve disabled pages by URL during preview via Page::checkIdentifier. -->
     <type name="Magento\Cms\Model\Page">
         <plugin name="magedrop_preview_cms_page"
                 type="MageDrop\Magento2\Plugin\Frontend\CmsPagePlugin"
                 sortOrder="100"/>
+        <plugin name="magedrop_preview_page_check_identifier"
+                type="MageDrop\Magento2\Plugin\Frontend\PageCheckIdentifierPlugin"
+                sortOrder="100"/>
     </type>
 
+    <!-- Preview: overlay staged data on Cms\Model\Block::load -->
     <type name="Magento\Cms\Model\Block">
         <plugin name="magedrop_preview_cms_block"
                 type="MageDrop\Magento2\Plugin\Frontend\CmsBlockPlugin"
+                sortOrder="100"/>
+    </type>
+
+    <!-- Preview: cover the BlockByIdentifier / BlockRepository::getByIdentifier path -->
+    <type name="Magento\Cms\Model\GetBlockByIdentifier">
+        <plugin name="magedrop_preview_get_block_by_identifier"
+                type="MageDrop\Magento2\Plugin\Frontend\GetBlockByIdentifierPlugin"
                 sortOrder="100"/>
     </type>
 
