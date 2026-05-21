@@ -19,8 +19,12 @@ class LoadChangesPlugin
     ) {
     }
 
-    public function afterGetData($subject, array $result): array
+    public function afterGetData($subject, $result)
     {
+        if (!is_array($result) || empty($result)) {
+            return $result;
+        }
+
         $releaseId = (int) $this->request->getParam('magedrop_load', 0);
 
         if (!$releaseId || !$this->apiClient->isEnabled()) {
@@ -28,6 +32,10 @@ class LoadChangesPlugin
         }
 
         foreach ($result as $entityId => &$data) {
+            if (!is_array($data)) {
+                continue;
+            }
+
             $remoteId = (string) ($data[$this->entityIdKey] ?? '');
             if (!$remoteId) {
                 continue;

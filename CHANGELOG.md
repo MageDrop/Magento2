@@ -5,6 +5,11 @@ All notable changes to `MageDrop_Magento2` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.7] - 2026-05-21
+
+### Fixed
+- `LoadChangesPlugin::afterGetData` no longer crashes when creating a new CMS block or page. Magento's data provider returns `null` from `getData()` before an entity exists, but the plugin's `array` parameter type rejected it with a `TypeError`. Signature relaxed and a defensive guard added so non-array results pass through untouched.
+
 ## [1.0.6] - 2026-05-20
 
 ### Fixed
