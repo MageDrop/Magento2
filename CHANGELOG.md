@@ -5,6 +5,11 @@ All notable changes to `MageDrop_Magento2` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.8] - 2026-06-19
+
+### Changed
+- Preview overlays now fetch all of a release's staged changes in a single SaaS request instead of one request per CMS page/block. `Overlay` loads the full change set on first use and serves every subsequent entity from an in-memory map, so a page rendering many CMS blocks costs at most one API call. Backed by the new `POST /api/module/preview/all` endpoint.
+
 ## [1.0.7] - 2026-05-21
 
 ### Fixed

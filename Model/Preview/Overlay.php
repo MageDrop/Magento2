@@ -10,12 +10,15 @@ use Psr\Log\LoggerInterface;
 
 /**
  * Applies a release's staged changes to a CMS entity in-memory.
- * Caches per-request — each (entity_type, id) hits the SaaS at most once per render.
+ *
+ * All of a release's staged changes are fetched in a single SaaS request on
+ * first use and held for the rest of the request, so any number of CMS pages
+ * and blocks rendered on a page costs at most one API call.
  */
 class Overlay
 {
-    /** @var array<string, array<string, mixed>> */
-    private array $cache = [];
+    /** @var array<string, array<string, mixed>>|null map of "entityType:id" => changes */
+    private ?array $changeMap = null;
 
     public function __construct(
         private State $state,
@@ -52,22 +55,30 @@ class Overlay
      */
     private function fetchChanges(string $entityType, int $entityId): array
     {
-        $cacheKey = $entityType . ':' . $entityId;
-        if (array_key_exists($cacheKey, $this->cache)) {
-            return $this->cache[$cacheKey];
+        return $this->getChangeMap()[$entityType . ':' . $entityId] ?? [];
+    }
+
+    /**
+     * Load (once per request) the full set of staged changes for the active
+     * release, keyed by "entityType:id".
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private function getChangeMap(): array
+    {
+        if ($this->changeMap !== null) {
+            return $this->changeMap;
         }
 
         try {
-            $changes = $this->apiClient->getPreviewChanges(
-                (int) $this->state->getReleaseId(),
-                $entityType,
-                (string) $entityId
+            $this->changeMap = $this->apiClient->getAllPreviewChanges(
+                (int) $this->state->getReleaseId()
             );
         } catch (\Throwable $e) {
-            $this->logger->error('MageDrop preview overlay error (' . $entityType . ' ' . $entityId . '): ' . $e->getMessage());
-            $changes = [];
+            $this->logger->error('MageDrop preview overlay error: ' . $e->getMessage());
+            $this->changeMap = [];
         }
 
-        return $this->cache[$cacheKey] = $changes;
+        return $this->changeMap;
     }
 }
