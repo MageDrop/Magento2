@@ -61,6 +61,29 @@ class ApiClient
         return $response['changes'] ?? [];
     }
 
+    /**
+     * Fetch every staged change for a release in one request, grouped by entity.
+     *
+     * @return array<string, array<string, mixed>> map of "entityType:entityId" => changes
+     */
+    public function getAllPreviewChanges(int $releaseId): array
+    {
+        $response = $this->request('POST', 'preview/all', [
+            'release_id' => $releaseId,
+        ]);
+
+        $map = [];
+        foreach ($response['entities'] ?? [] as $entity) {
+            if (!isset($entity['entity_type'], $entity['entity_id'])) {
+                continue;
+            }
+            $key = $entity['entity_type'] . ':' . $entity['entity_id'];
+            $map[$key] = $entity['changes'] ?? [];
+        }
+
+        return $map;
+    }
+
     public function validatePreviewToken(int $releaseId, string $previewToken): bool
     {
         $result = $this->validatePreviewTokenFull($releaseId, $previewToken);
