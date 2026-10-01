@@ -31,7 +31,7 @@ class Differ
                 if (!$adapter->isOverridden($entity, $field, $storeId)) {
                     continue;
                 }
-            } elseif ($stagedValue->equals($original)) {
+            } elseif ($stagedValue->equals($original) || $this->isUnsetZero($original, $stagedValue)) {
                 continue;
             }
 
@@ -39,5 +39,17 @@ class Differ
         }
 
         return $changes;
+    }
+
+    /**
+     * A select whose stored 0 matches none of its options (often a hidden field) posts '',
+     * which would stage a change nobody made.
+     */
+    private function isUnsetZero(Value $original, Value $staged): bool
+    {
+        return $original->type === Value::TYPE_TEXT
+            && $staged->type === Value::TYPE_TEXT
+            && trim((string) $original->value) === '0'
+            && $staged->isEmptyLike();
     }
 }

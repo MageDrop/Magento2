@@ -26,8 +26,11 @@ class Overlay
     /** @var array<string, array<int, array{scope_store_id: int|null, changes: array}>>|null */
     private ?array $groupMap = null;
 
-    /** @var array<string, true> entities already overlaid this request (adapter code:id:store) */
-    private array $applied = [];
+    /** Collection items already overlaid this request */
+    private \WeakMap $overlaidItems;
+
+    /** Collections currently being iterated by applyToCollection() */
+    private \WeakMap $iterating;
 
     public function __construct(
         private State $state,
@@ -36,6 +39,33 @@ class Overlay
         private StoreManagerInterface $storeManager,
         private LoggerInterface $logger
     ) {
+        $this->overlaidItems = new \WeakMap();
+        $this->iterating = new \WeakMap();
+    }
+
+    /**
+     * For afterLoad plugins on collections. load() runs its after-plugins on every call,
+     * including the early return once loaded, and getItems() calls load() — so guard
+     * re-entry and overlay each item only once.
+     */
+    public function applyToCollection(\Magento\Framework\Data\Collection $collection, string $entityType): void
+    {
+        if (!$this->state->isActive() || isset($this->iterating[$collection])) {
+            return;
+        }
+
+        $this->iterating[$collection] = true;
+        try {
+            foreach ($collection->getItems() as $item) {
+                if (isset($this->overlaidItems[$item]) || !$item->getId()) {
+                    continue;
+                }
+                $this->overlaidItems[$item] = true;
+                $this->applyTo($item, $entityType);
+            }
+        } finally {
+            unset($this->iterating[$collection]);
+        }
     }
 
     public function applyTo(DataObject $entity, string $entityType): bool
