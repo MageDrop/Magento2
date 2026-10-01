@@ -23,6 +23,8 @@ use Magento\Store\Model\Store;
  */
 class Attributes implements SectionHandlerInterface
 {
+    private const LAYOUT_NO_UPDATE = '__no_update__';
+
     /**
      * @param string[] $ignoredFields
      * @param string[] $ignoredPrefixes
@@ -72,7 +74,19 @@ class Attributes implements SectionHandlerInterface
                 }
             }
 
-            $values[$field] = Value::text($raw);
+            // Layout update selector's "no change" sentinel, stripped by the core save controllers
+            if ($raw === self::LAYOUT_NO_UPDATE) {
+                continue;
+            }
+
+            $value = Value::text($raw);
+
+            // Attributes that never had a value (e.g. added by an extension later) post their default
+            if ($this->eav && $entity->getData($field) === null && $this->isAttributeDefault($entity, (string) $field, $value)) {
+                continue;
+            }
+
+            $values[$field] = $value;
         }
 
         return $values;
@@ -226,6 +240,17 @@ class Attributes implements SectionHandlerInterface
         }
 
         return $attribute instanceof AbstractAttribute ? $attribute : null;
+    }
+
+    private function isAttributeDefault(DataObject $entity, string $field, Value $value): bool
+    {
+        $attribute = $this->getAttribute($entity, $field);
+        $default = $attribute?->getDefaultValue();
+        if ($default === null || $default === '') {
+            return false;
+        }
+
+        return Value::text($default)->equals($value);
     }
 
     private function isGlobal(AbstractAttribute $attribute): bool
