@@ -4,22 +4,40 @@ declare(strict_types=1);
 
 namespace MageDrop\Magento2\Plugin\Adminhtml;
 
+use MageDrop\Magento2\Model\Entity\AdapterPool;
 use MageDrop\Magento2\Model\Service\ApiClient;
+use MageDrop\Magento2\Model\Staging\Stager;
+use Magento\Backend\Model\Session as BackendSession;
 use Magento\Framework\App\RequestInterface;
 use Magento\Framework\Controller\Result\RedirectFactory;
 use Magento\Framework\Message\ManagerInterface;
 use Psr\Log\LoggerInterface;
 
+/**
+ * Intercepts the real admin Save controller. When the form was submitted with
+ * a MageDrop flag (set by save-stage.js / quick-preview.js through
+ * form.save(redirect, data)), the exact POST Magento would have persisted is
+ * diffed against the live entity and shipped to the SaaS instead of saved.
+ *
+ * Subclasses only bind the entity type code (concrete classes are required
+ * because di:compile cannot build interceptors for virtual types).
+ */
 class StageSavePlugin
 {
+    public const PARAM_STAGE = 'magedrop_stage';
+    public const PARAM_RELEASE = 'magedrop_release_id';
+    public const PARAM_QUICK_PREVIEW = 'magedrop_quick_preview';
+    public const SESSION_PREVIEW_RESULT = 'magedrop_quick_preview_result';
+
     public function __construct(
+        private Stager $stager,
+        private AdapterPool $adapterPool,
         private ApiClient $apiClient,
         private RedirectFactory $redirectFactory,
         private ManagerInterface $messageManager,
+        private BackendSession $backendSession,
         private LoggerInterface $logger,
-        private string $entityType = '',
-        private string $entityIdParam = '',
-        private string $editRoute = ''
+        private string $entityType = ''
     ) {
     }
 
@@ -27,99 +45,114 @@ class StageSavePlugin
     {
         $request = $subject->getRequest();
 
-        if (!$request->getParam('magedrop_stage')) {
+        $wantsStage = (bool) $request->getParam(self::PARAM_STAGE);
+        $wantsPreview = (bool) $request->getParam(self::PARAM_QUICK_PREVIEW);
+
+        if (!$wantsStage && !$wantsPreview) {
             return $proceed();
         }
 
-        try {
-            $entityId = (string) ($request->getParam($this->entityIdParam) ?? '');
-            $formData = $this->extractFormData($request);
+        if (!$this->apiClient->isEnabled()) {
+            $this->messageManager->addErrorMessage(__('MageDrop is disabled. Enable it under Stores > Configuration > MageDrop.'));
 
-            return $this->handleStage($request, $entityId, $formData);
-        } catch (\Exception $e) {
-            $this->logger->error('MageDrop error: ' . $e->getMessage());
+            return $this->redirectBack($request);
+        }
+
+        try {
+            return $wantsStage
+                ? $this->handleStage($request)
+                : $this->handleQuickPreview($request);
+        } catch (\Throwable $e) {
+            $this->logger->error('MageDrop staging error: ' . $e->getMessage(), ['exception' => $e]);
             $this->messageManager->addErrorMessage(__('MageDrop error: %1', $e->getMessage()));
         }
 
         return $this->redirectBack($request);
     }
 
-    private function handleStage(RequestInterface $request, string $entityId, array $formData)
+    private function handleStage(RequestInterface $request)
     {
-        $releaseId = (int) $request->getParam('magedrop_release_id');
+        $releaseId = (int) $request->getParam(self::PARAM_RELEASE);
 
         if (!$releaseId) {
             $this->messageManager->addErrorMessage(__('No release selected.'));
+
             return $this->redirectBack($request);
         }
 
-        $response = $this->apiClient->stageEntity($releaseId, $this->entityType, $entityId, $formData);
+        $result = $this->stager->stage($this->entityType, $request, $releaseId);
+
+        if ($result['change_count'] === 0) {
+            $this->messageManager->addNoticeMessage(
+                __('No changes detected — the form matches what is already live. Nothing was staged.')
+            );
+
+            return $this->redirectBack($request);
+        }
+
+        $response = $result['response'];
 
         if (empty($response)) {
-            $this->messageManager->addErrorMessage(__('Failed to communicate with MageDrop API.'));
+            $this->messageManager->addErrorMessage(__('Failed to communicate with the MageDrop API.'));
+
             return $this->redirectBack($request);
         }
 
         if (!empty($response['error'])) {
-            $this->messageManager->addNoticeMessage(__($response['error']));
+            $this->messageManager->addErrorMessage(__($response['error']));
+
             return $this->redirectBack($request);
         }
 
-        $changeCount = $response['change_count'] ?? 0;
-        $releaseName = $response['release'] ?? '';
-
         $this->messageManager->addSuccessMessage(
-            __('Staged %1 change(s) to release "%2".', $changeCount, $releaseName)
+            __(
+                'Staged %1 change(s) to release "%2". The form now shows the staged values; nothing has been saved to the live store.',
+                $response['change_count'] ?? $result['change_count'],
+                $response['release'] ?? ''
+            )
         );
 
-        return $this->redirectBack($request, $releaseId);
+        return $this->redirectBack($request, ['magedrop_load' => $releaseId]);
     }
 
-    private function extractFormData(RequestInterface $request): array
+    private function handleQuickPreview(RequestInterface $request)
     {
-        $raw = $request->getParams();
+        $result = $this->stager->quickPreview($this->entityType, $request);
 
-        $ignored = [
-            'form_key', 'key', 'isAjax', 'is_active_filter',
-            'back', 'redirect_to_store', 'reset',
-            'entity_id', 'row_id', 'page_id', 'block_id',
-            'store_id', 'identifier',
-            'created_at', 'updated_at', 'created_in', 'updated_in',
-            'layout_update_selected', 'layout_update_xml', 'custom_layout_update_xml',
-            'custom_design', 'custom_design_from', 'custom_design_to',
-            'custom_theme', 'custom_root_template', 'page_layout',
-            'magedrop_stage', 'magedrop_release_id',
-            'use_default', 'use_config',
-        ];
+        if ($result['change_count'] === 0) {
+            $this->messageManager->addNoticeMessage(
+                __('No changes detected — the form matches what is already live. Nothing to preview.')
+            );
 
-        $filtered = [];
-        foreach ($raw as $key => $value) {
-            if (in_array($key, $ignored, true)) {
-                continue;
-            }
-            if (str_starts_with($key, 'use_config_') || str_starts_with($key, 'use_default_')) {
-                continue;
-            }
-            if (!is_scalar($value) && $value !== null) {
-                continue;
-            }
-            $filtered[$key] = $value;
+            return $this->redirectBack($request);
         }
 
-        return $filtered;
+        $response = $result['response'];
+
+        if (empty($response) || !empty($response['error']) || empty($response['preview_url'])) {
+            $this->messageManager->addErrorMessage(
+                __('Failed to create preview: %1', $response['error'] ?? 'no response from MageDrop')
+            );
+
+            return $this->redirectBack($request);
+        }
+
+        $this->backendSession->setData(self::SESSION_PREVIEW_RESULT, [
+            'preview_url' => (string) $response['preview_url'],
+            'change_count' => (int) ($response['change_count'] ?? $result['change_count']),
+        ]);
+
+        return $this->redirectBack($request, ['magedrop_preview' => 1]);
     }
 
-    private function redirectBack(RequestInterface $request, ?int $stagedReleaseId = null)
+    private function redirectBack(RequestInterface $request, array $extraParams = [])
     {
-        $redirect = $this->redirectFactory->create();
-        $entityId = (string) ($request->getParam($this->entityIdParam) ?? '');
+        $adapter = $this->adapterPool->get($this->entityType);
+        $entityId = (string) ($adapter->resolveEntityId($request) ?? '');
+        $storeId = $adapter->resolveStoreId($request);
 
-        $params = [$this->entityIdParam => $entityId];
+        $params = $adapter->getEditParams($entityId, $storeId) + $extraParams;
 
-        if ($stagedReleaseId) {
-            $params['magedrop_load'] = $stagedReleaseId;
-        }
-
-        return $redirect->setPath($this->editRoute, $params);
+        return $this->redirectFactory->create()->setPath($adapter->getEditRoute(), $params);
     }
 }

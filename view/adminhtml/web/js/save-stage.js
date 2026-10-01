@@ -7,13 +7,14 @@ define([
 ], function ($, alert, modal, $t, registry) {
     'use strict';
 
+    /**
+     * Save & Stage: pick a release, then submit the real admin form with the
+     * MageDrop flags. The Save controller plugin intercepts the POST, diffs it
+     * against the live entity and stages the delta instead of saving.
+     */
     return function (config, element) {
         var releasesUrl = config.releasesUrl;
-        var stageUrl = config.stageUrl;
         var formName = config.formName;
-        var entityIdKey = config.entityIdKey;
-        var entityType = config.entityType;
-        var entityId = config.entityId;
 
         $(element).on('click', function (e) {
             e.preventDefault();
@@ -56,13 +57,13 @@ define([
                 optionsHtml +
                 '</select>' +
                 '<p style="margin-top: 12px; color: #666; font-size: 12px;">' +
-                $t('This will stage the current form data to the selected release.') +
+                $t('Only the fields that differ from the live version are staged. Nothing is saved to the live store.') +
                 '</p>' +
                 '</div>';
 
             var $content = $(html);
 
-            var options = {
+            modal({
                 type: 'popup',
                 responsive: true,
                 title: $t('Save & Stage to Release'),
@@ -71,8 +72,8 @@ define([
                     class: 'action-primary',
                     click: function () {
                         var releaseId = $content.find('#magedrop-save-stage-select').val();
-                        var modalInstance = this;
-                        submitStage(releaseId, modalInstance);
+                        this.closeModal();
+                        submitStage(releaseId);
                     }
                 }, {
                     text: $t('Cancel'),
@@ -81,101 +82,25 @@ define([
                         this.closeModal();
                     }
                 }]
-            };
+            }, $content);
 
-            modal(options, $content);
             $content.modal('openModal');
         }
 
-        function submitStage(releaseId, modalInstance) {
-            var $btn = modalInstance.element.closest('.modal-inner-wrap').find('.action-primary');
-            $btn.text($t('Staging...')).prop('disabled', true);
-
+        function submitStage(releaseId) {
             var form = registry.get(formName);
 
-            if (!form || !form.source) {
-                modalInstance.closeModal();
-                alert({content: $t('Could not access form data.')});
+            if (!form || typeof form.save !== 'function') {
+                alert({content: $t('Could not access the form.')});
                 return;
             }
 
-            var data = form.source.get('data');
-            var formData = extractFormData(data);
-
-            if (!Object.keys(formData).length) {
-                modalInstance.closeModal();
-                alert({content: $t('No form data found.')});
-                return;
-            }
-
-            var resolvedId = entityId || data[entityIdKey] || '';
-
-            $.ajax({
-                url: stageUrl,
-                type: 'POST',
-                data: {
-                    release_id: releaseId,
-                    entity_type: entityType,
-                    entity_id: resolvedId,
-                    form_data: formData,
-                    form_key: FORM_KEY
-                },
-                dataType: 'json',
-                success: function (response) {
-                    modalInstance.closeModal();
-
-                    if (!response.success) {
-                        alert({content: response.message || $t('Failed to stage changes.')});
-                        return;
-                    }
-
-                    if (!response.staged) {
-                        alert({
-                            title: $t('No Changes Detected'),
-                            content: $t('The current form data matches what is already live. Nothing to stage.')
-                        });
-                        return;
-                    }
-
-                    alert({
-                        title: $t('Changes Staged'),
-                        content: $t('%1 change(s) staged to "%2".')
-                            .replace('%1', response.change_count)
-                            .replace('%2', response.release_name),
-                        actions: {
-                            always: function () {
-                                window.location.href = response.redirect_url;
-                            }
-                        }
-                    });
-                },
-                error: function () {
-                    modalInstance.closeModal();
-                    alert({content: $t('Failed to stage changes. Check the MageDrop connection.')});
-                }
+            // Same mechanism core uses for "Save & Continue" (back=edit): extra
+            // top-level POST params ride along with the full form submission.
+            form.save(undefined, {
+                magedrop_stage: 1,
+                magedrop_release_id: releaseId
             });
-        }
-
-        function extractFormData(data) {
-            var ignored = [
-                'form_key', 'entity_id', 'row_id', 'page_id', 'block_id',
-                'created_at', 'updated_at', 'created_in', 'updated_in',
-                'store_id', 'identifier',
-                'layout_update_selected', 'layout_update_xml', 'custom_layout_update_xml',
-                'custom_design', 'custom_design_from', 'custom_design_to',
-                'custom_theme', 'custom_root_template', 'page_layout'
-            ];
-
-            var filtered = {};
-            $.each(data, function (key, value) {
-                if (ignored.indexOf(key) !== -1) return;
-                if (key.indexOf('use_config_') === 0 || key.indexOf('use_default_') === 0) return;
-                if (typeof value === 'object' && value !== null) return;
-
-                filtered[key] = value;
-            });
-
-            return filtered;
         }
     };
 });

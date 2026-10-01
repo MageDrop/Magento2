@@ -4,25 +4,36 @@ declare(strict_types=1);
 
 namespace MageDrop\Magento2\Model\Preview;
 
+use MageDrop\Magento2\Model\Entity\AdapterPool;
+use MageDrop\Magento2\Model\Entity\Value;
 use MageDrop\Magento2\Model\Service\ApiClient;
 use Magento\Framework\DataObject;
+use Magento\Store\Model\Store;
+use Magento\Store\Model\StoreManagerInterface;
 use Psr\Log\LoggerInterface;
 
 /**
- * Applies a release's staged changes to a CMS entity in-memory.
+ * Applies a release's staged changes to an entity in-memory for preview.
  *
  * All of a release's staged changes are fetched in a single SaaS request on
- * first use and held for the rest of the request, so any number of CMS pages
- * and blocks rendered on a page costs at most one API call.
+ * first use and held for the rest of the request. Changes are grouped by store
+ * scope: default-scope changes apply everywhere the field is not overridden by
+ * the current store view; store-specific changes apply only on that store view
+ * and win over default ones.
  */
 class Overlay
 {
-    /** @var array<string, array<string, mixed>>|null map of "entityType:id" => changes */
-    private ?array $changeMap = null;
+    /** @var array<string, array<int, array{scope_store_id: int|null, changes: array}>>|null */
+    private ?array $groupMap = null;
+
+    /** @var array<string, true> entities already overlaid this request (adapter code:id:store) */
+    private array $applied = [];
 
     public function __construct(
         private State $state,
         private ApiClient $apiClient,
+        private AdapterPool $adapterPool,
+        private StoreManagerInterface $storeManager,
         private LoggerInterface $logger
     ) {
     }
@@ -38,47 +49,106 @@ class Overlay
             return false;
         }
 
-        $changes = $this->fetchChanges($entityType, $entityId);
-        if (!$changes) {
+        $groups = $this->getGroupMap()[$entityType . ':' . $entityId] ?? [];
+        if (!$groups) {
             return false;
         }
 
-        foreach ($changes as $field => $value) {
-            $entity->setData($field, $value);
+        try {
+            $storeId = (int) $this->storeManager->getStore()->getId();
+        } catch (\Throwable) {
+            $storeId = Store::DEFAULT_STORE_ID;
+        }
+
+        $adapter = $this->adapterPool->has($entityType) ? $this->adapterPool->get($entityType) : null;
+
+        $default = [];
+        $specific = [];
+        foreach ($groups as $group) {
+            $scope = (int) ($group['scope_store_id'] ?? Store::DEFAULT_STORE_ID);
+            $changes = $this->toValues($group['changes']);
+            if ($scope === Store::DEFAULT_STORE_ID) {
+                $default = $changes + $default;
+            } elseif ($scope === $storeId) {
+                $specific = $changes + $specific;
+            }
+        }
+
+        // A default-scope change must not show through where this store view overrides the field
+        if ($default && $adapter && $adapter->supportsStoreScope() && $storeId !== Store::DEFAULT_STORE_ID) {
+            foreach (array_keys($default) as $field) {
+                if (isset($specific[$field])) {
+                    continue;
+                }
+                try {
+                    if ($adapter->isOverridden($entity, $field, $storeId)) {
+                        unset($default[$field]);
+                    }
+                } catch (\Throwable $e) {
+                    $this->logger->debug('MageDrop overlay override check failed: ' . $e->getMessage());
+                }
+            }
+        }
+
+        $values = $specific + $default;
+        foreach ($values as $field => $value) {
+            if ($value->isInherit()) {
+                unset($values[$field]);
+            }
+        }
+
+        if (!$values) {
+            return false;
+        }
+
+        try {
+            if ($adapter) {
+                $adapter->overlay($entity, $values);
+            } else {
+                foreach ($values as $field => $value) {
+                    $entity->setData($field, $value->forModel());
+                }
+            }
+        } catch (\Throwable $e) {
+            $this->logger->error('MageDrop preview overlay error: ' . $e->getMessage());
+
+            return false;
         }
 
         return true;
     }
 
     /**
-     * @return array<string, mixed>
+     * @return array<string, Value>
      */
-    private function fetchChanges(string $entityType, int $entityId): array
+    private function toValues(array $changes): array
     {
-        return $this->getChangeMap()[$entityType . ':' . $entityId] ?? [];
+        $values = [];
+        foreach ($changes as $field => $raw) {
+            $values[$field] = is_array($raw) ? Value::fromArray($raw) : Value::text($raw);
+        }
+
+        return $values;
     }
 
     /**
-     * Load (once per request) the full set of staged changes for the active
-     * release, keyed by "entityType:id".
-     *
-     * @return array<string, array<string, mixed>>
+     * Load (once per request) the full set of staged changes for the active release.
      */
-    private function getChangeMap(): array
+    private function getGroupMap(): array
     {
-        if ($this->changeMap !== null) {
-            return $this->changeMap;
+        if ($this->groupMap !== null) {
+            return $this->groupMap;
         }
 
         try {
-            $this->changeMap = $this->apiClient->getAllPreviewChanges(
+            $this->groupMap = $this->apiClient->getAllPreviewChanges(
                 (int) $this->state->getReleaseId()
             );
         } catch (\Throwable $e) {
             $this->logger->error('MageDrop preview overlay error: ' . $e->getMessage());
-            $this->changeMap = [];
+            $this->groupMap = [];
         }
 
-        return $this->changeMap;
+        return $this->groupMap;
     }
 }
