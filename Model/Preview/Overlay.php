@@ -111,7 +111,9 @@ class Overlay
                     continue;
                 }
                 try {
-                    if ($adapter->isOverridden($entity, $field, $storeId)) {
+                    // Non-scopable fields (gallery, options, third-party sections) have no
+                    // store override to respect, though their sections report "overridden"
+                    if ($adapter->isScopable($entity, $field) && $adapter->isOverridden($entity, $field, $storeId)) {
                         unset($default[$field]);
                     }
                 } catch (\Throwable $e) {

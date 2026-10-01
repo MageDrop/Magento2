@@ -19,8 +19,10 @@ class Assignments implements SectionHandlerInterface
     public function extract(array $post, DataObject $entity, int $storeId): array
     {
         $values = [];
+        // The initialised model always carries these; only stage what the form actually posted
+        $posted = (array) ($post['_post']['product'] ?? $post);
         foreach (self::FIELDS as $field) {
-            if (!array_key_exists($field, $post)) {
+            if (!array_key_exists($field, $post) || !array_key_exists($field, $posted)) {
                 continue;
             }
             $raw = $post[$field];

@@ -54,10 +54,7 @@ Every entity type is an `AdapterInterface` registered in the `AdapterPool` DI ar
 | `Section\Product\CustomOptions` | customizable options and their values |
 | `Section\Product\TierPrice` | tier prices |
 | `Section\Product\ProductLinks` | related / up-sell / cross-sell links |
-| `Section\Product\Stock` | stock item fields (qty, in stock, Advanced Inventory) |
-| `Section\Product\BundleOptions` | bundle options and selections |
 | `Section\Product\ConfigurableLinks` | configurable child associations |
-| `Section\Product\DownloadableLinks` | downloadable links and samples |
 
 Product section handlers receive the initialised product data plus two extra keys: `_post` (the raw admin POST) and `_form_product` (the product model after `initializeFromData`). A third-party handler for a custom product-form tab (for example a fabric mapping stored in its own table) reads its rows from `_post['product'][...]`, compares them with what it loads for the product, writes them on `apply()`, and can set a data key on the product in `overlay()` for its own frontend code to pick up during preview.
 

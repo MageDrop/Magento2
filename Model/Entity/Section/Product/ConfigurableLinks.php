@@ -30,11 +30,15 @@ class ConfigurableLinks implements SectionHandlerInterface
         if (!$form instanceof Product || $form->getTypeId() !== Configurable::TYPE_CODE) {
             return [];
         }
-        if (!array_key_exists('associated_product_ids_serialized', $raw)) {
+        // The form posts either the JSON "_serialized" variant or the plain array, like core's
+        // configurable save handling accepts
+        if (array_key_exists('associated_product_ids_serialized', $raw)) {
+            $ids = json_decode((string) $raw['associated_product_ids_serialized'], true);
+        } elseif (array_key_exists('associated_product_ids', $raw)) {
+            $ids = $raw['associated_product_ids'];
+        } else {
             return [];
         }
-
-        $ids = json_decode((string) $raw['associated_product_ids_serialized'], true);
         $attributes = [];
         foreach ((array) ($raw['product']['configurable_attributes_data'] ?? []) as $attribute) {
             if (is_array($attribute) && !empty($attribute['code'])) {

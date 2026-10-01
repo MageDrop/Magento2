@@ -220,7 +220,7 @@ class Product extends AbstractAdapter
             if (in_array($code, $appliedFields, true) || $code === MediaGallery::FIELD) {
                 continue;
             }
-            if (in_array($code, MediaGallery::ROLES, true) && in_array(MediaGallery::FIELD, $appliedFields, true)) {
+            if ($attribute->getFrontendInput() === 'media_image' && in_array(MediaGallery::FIELD, $appliedFields, true)) {
                 continue; // roles are set by the gallery handler
             }
             if (!method_exists($attribute, 'isScopeGlobal') || $attribute->isScopeGlobal()) {

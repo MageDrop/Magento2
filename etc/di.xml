@@ -167,6 +167,9 @@
                 <item name="media" xsi:type="string">Magento\Catalog\Model\Product\Attribute\Backend\Media</item>
                 <item name="tierprice" xsi:type="string">Magento\Catalog\Model\Product\Attribute\Backend\Tierprice</item>
             </argument>
+            <argument name="skipFrontendInputs" xsi:type="array">
+                <item name="media_image" xsi:type="string">media_image</item>
+            </argument>
             <argument name="ignoredFields" xsi:type="array">
                 <item name="entity_id" xsi:type="string">entity_id</item>
                 <item name="row_id" xsi:type="string">row_id</item>
@@ -226,11 +229,7 @@
                 <item name="options" xsi:type="object">MageDrop\Magento2\Model\Entity\Section\Product\CustomOptions</item>
                 <item name="tier_price" xsi:type="object">MageDrop\Magento2\Model\Entity\Section\Product\TierPrice</item>
                 <item name="product_links" xsi:type="object">MageDrop\Magento2\Model\Entity\Section\Product\ProductLinks</item>
-                <item name="stock" xsi:type="object">MageDrop\Magento2\Model\Entity\Section\Product\Stock</item>
-                <item name="source_items" xsi:type="object">MageDrop\Magento2\Model\Entity\Section\Product\SourceItems</item>
-                <item name="bundle_options" xsi:type="object">MageDrop\Magento2\Model\Entity\Section\Product\BundleOptions</item>
                 <item name="configurable_links" xsi:type="object">MageDrop\Magento2\Model\Entity\Section\Product\ConfigurableLinks</item>
-                <item name="downloadable" xsi:type="object">MageDrop\Magento2\Model\Entity\Section\Product\DownloadableLinks</item>
             </argument>
         </arguments>
     </type>
