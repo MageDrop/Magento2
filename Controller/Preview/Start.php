@@ -49,8 +49,31 @@ class Start extends Action implements CsrfAwareActionInterface
             }
         }
 
-        return $this->resultRedirectFactory->create()
-            ->setUrl($this->storeManager->getStore()->getBaseUrl());
+        return $this->resultRedirectFactory->create()->setUrl($this->landingUrl());
+    }
+
+    /**
+     * Land on the staged entity's page when the SaaS supplied one and it lives on
+     * one of this installation's store hosts; otherwise the store home page.
+     */
+    private function landingUrl(): string
+    {
+        $base = (string) $this->storeManager->getStore()->getBaseUrl();
+        $redirect = trim((string) $this->getRequest()->getParam('redirect', ''));
+        if ($redirect === '' || !filter_var($redirect, FILTER_VALIDATE_URL)) {
+            return $base;
+        }
+        $host = strtolower((string) parse_url($redirect, PHP_URL_HOST));
+        foreach ($this->storeManager->getStores(true) as $store) {
+            foreach ([\Magento\Framework\UrlInterface::URL_TYPE_WEB] as $type) {
+                $storeHost = strtolower((string) parse_url((string) $store->getBaseUrl($type), PHP_URL_HOST));
+                if ($storeHost !== '' && $storeHost === $host) {
+                    return $redirect;
+                }
+            }
+        }
+
+        return $base;
     }
 
     public function createCsrfValidationException(RequestInterface $request): ?InvalidRequestException

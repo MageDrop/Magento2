@@ -14,6 +14,7 @@ define([
         var entityId = config.entityId;
         var entityIdKey = config.entityIdKey;
         var formName = config.formName;
+        var storeId = config.storeId || 0;
 
         $(element).on('click', function (e) {
             e.preventDefault();
@@ -110,6 +111,7 @@ define([
                     release_id: releaseId,
                     entity_type: entityType,
                     entity_id: resolvedId,
+                    store_id: storeId,
                     form_key: FORM_KEY
                 },
                 dataType: 'json',

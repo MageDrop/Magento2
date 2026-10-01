@@ -26,13 +26,23 @@ class State
 
     public function getReleaseId(): ?int
     {
-        $value = $this->httpContext->getValue(PreviewBar::CONTEXT_PREVIEW);
-        if (!$value) {
+        $value = $this->getVaryValue();
+        if ($value === null) {
             return null;
         }
 
-        $releaseId = (int) explode(':', (string) $value, 2)[0];
+        $releaseId = (int) explode(':', $value, 2)[0];
 
         return $releaseId ?: null;
+    }
+
+    /**
+     * The full "releaseId:changesHash" vary token, or null when not previewing.
+     */
+    public function getVaryValue(): ?string
+    {
+        $value = $this->httpContext->getValue(PreviewBar::CONTEXT_PREVIEW);
+
+        return $value ? (string) $value : null;
     }
 }

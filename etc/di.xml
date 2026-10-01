@@ -3,6 +3,10 @@
         xsi:noNamespaceSchemaLocation="urn:magento:framework:ObjectManager/etc/config.xsd">
 
     <preference for="MageDrop\Magento2\Api\PingInterface" type="MageDrop\Magento2\Model\Ping"/>
+    <preference for="MageDrop\Magento2\Api\EntityManagementInterface" type="MageDrop\Magento2\Model\EntityManagement"/>
+    <preference for="MageDrop\Magento2\Api\Data\ChangeInterface" type="MageDrop\Magento2\Model\Api\Data\Change"/>
+    <preference for="MageDrop\Magento2\Api\Data\EntityStateInterface" type="MageDrop\Magento2\Model\Api\Data\EntityState"/>
+    <preference for="MageDrop\Magento2\Api\Data\ApplyResultInterface" type="MageDrop\Magento2\Model\Api\Data\ApplyResult"/>
 
     <!-- Fix FPC load to use the original Identifier (reads vary cookie from request).
          Magento 2.4.8-p4 changed the global IdentifierInterface preference to IdentifierForSave
@@ -10,6 +14,223 @@
     <type name="Magento\Framework\App\PageCache\Kernel">
         <arguments>
             <argument name="identifier" xsi:type="object">Magento\Framework\App\PageCache\Identifier</argument>
+        </arguments>
+    </type>
+
+    <!-- ============================================================
+         Entity adapters. Add your own entity type by registering an
+         AdapterInterface implementation under a new key here.
+         ============================================================ -->
+    <type name="MageDrop\Magento2\Model\Entity\AdapterPool">
+        <arguments>
+            <argument name="adapters" xsi:type="array">
+                <item name="cms_page" xsi:type="object">MageDrop\Magento2\Model\Entity\Adapter\CmsPage</item>
+                <item name="cms_block" xsi:type="object">MageDrop\Magento2\Model\Entity\Adapter\CmsBlock</item>
+                <item name="catalog_category" xsi:type="object">MageDrop\Magento2\Model\Entity\Adapter\Category</item>
+                <item name="catalog_product" xsi:type="object">MageDrop\Magento2\Model\Entity\Adapter\Product</item>
+            </argument>
+        </arguments>
+    </type>
+
+    <!-- CMS: plain scalar fields, no store scope -->
+    <virtualType name="MageDrop\Magento2\Model\Entity\Section\Attributes\Cms"
+                 type="MageDrop\Magento2\Model\Entity\Section\Attributes">
+        <arguments>
+            <argument name="eav" xsi:type="boolean">false</argument>
+            <argument name="ignoredFields" xsi:type="array">
+                <item name="form_key" xsi:type="string">form_key</item>
+                <item name="key" xsi:type="string">key</item>
+                <item name="isAjax" xsi:type="string">isAjax</item>
+                <item name="is_active_filter" xsi:type="string">is_active_filter</item>
+                <item name="back" xsi:type="string">back</item>
+                <item name="redirect_to_store" xsi:type="string">redirect_to_store</item>
+                <item name="reset" xsi:type="string">reset</item>
+                <item name="id" xsi:type="string">id</item>
+                <item name="entity_id" xsi:type="string">entity_id</item>
+                <item name="row_id" xsi:type="string">row_id</item>
+                <item name="page_id" xsi:type="string">page_id</item>
+                <item name="block_id" xsi:type="string">block_id</item>
+                <item name="store_id" xsi:type="string">store_id</item>
+                <item name="stores" xsi:type="string">stores</item>
+                <item name="store_code" xsi:type="string">store_code</item>
+                <item name="identifier" xsi:type="string">identifier</item>
+                <item name="creation_time" xsi:type="string">creation_time</item>
+                <item name="update_time" xsi:type="string">update_time</item>
+                <item name="created_at" xsi:type="string">created_at</item>
+                <item name="updated_at" xsi:type="string">updated_at</item>
+                <item name="created_in" xsi:type="string">created_in</item>
+                <item name="updated_in" xsi:type="string">updated_in</item>
+                <item name="layout_update_selected" xsi:type="string">layout_update_selected</item>
+                <item name="layout_update_xml" xsi:type="string">layout_update_xml</item>
+                <item name="custom_layout_update_xml" xsi:type="string">custom_layout_update_xml</item>
+                <item name="custom_theme" xsi:type="string">custom_theme</item>
+                <item name="custom_theme_from" xsi:type="string">custom_theme_from</item>
+                <item name="custom_theme_to" xsi:type="string">custom_theme_to</item>
+                <item name="custom_root_template" xsi:type="string">custom_root_template</item>
+                <item name="layout_update_selected_file" xsi:type="string">layout_update_selected_file</item>
+                <item name="use_default" xsi:type="string">use_default</item>
+                <item name="use_config" xsi:type="string">use_config</item>
+                <item name="first_store_id" xsi:type="string">first_store_id</item>
+                <item name="website_root" xsi:type="string">website_root</item>
+                <item name="active" xsi:type="string">active</item>
+            </argument>
+        </arguments>
+    </virtualType>
+
+    <type name="MageDrop\Magento2\Model\Entity\Adapter\CmsPage">
+        <arguments>
+            <argument name="sections" xsi:type="array">
+                <item name="attributes" xsi:type="object">MageDrop\Magento2\Model\Entity\Section\Attributes\Cms</item>
+                <item name="stores" xsi:type="object">MageDrop\Magento2\Model\Entity\Section\Cms\Stores</item>
+            </argument>
+        </arguments>
+    </type>
+
+    <type name="MageDrop\Magento2\Model\Entity\Adapter\CmsBlock">
+        <arguments>
+            <argument name="sections" xsi:type="array">
+                <item name="attributes" xsi:type="object">MageDrop\Magento2\Model\Entity\Section\Attributes\Cms</item>
+                <item name="stores" xsi:type="object">MageDrop\Magento2\Model\Entity\Section\Cms\Stores</item>
+            </argument>
+        </arguments>
+    </type>
+
+    <!-- Category: EAV attributes at store scope, image attributes, product assignments -->
+    <virtualType name="MageDrop\Magento2\Model\Entity\Section\Attributes\Category"
+                 type="MageDrop\Magento2\Model\Entity\Section\Attributes">
+        <arguments>
+            <argument name="eav" xsi:type="boolean">true</argument>
+            <argument name="entityInterface" xsi:type="string">Magento\Catalog\Api\Data\CategoryInterface</argument>
+            <argument name="skipBackends" xsi:type="array">
+                <item name="image" xsi:type="string">Magento\Catalog\Model\Category\Attribute\Backend\Image</item>
+            </argument>
+            <argument name="boolFields" xsi:type="array">
+                <item name="is_active" xsi:type="string">is_active</item>
+                <item name="include_in_menu" xsi:type="string">include_in_menu</item>
+                <item name="is_anchor" xsi:type="string">is_anchor</item>
+                <item name="custom_use_parent_settings" xsi:type="string">custom_use_parent_settings</item>
+                <item name="custom_apply_to_products" xsi:type="string">custom_apply_to_products</item>
+            </argument>
+            <argument name="ignoredFields" xsi:type="array">
+                <item name="entity_id" xsi:type="string">entity_id</item>
+                <item name="row_id" xsi:type="string">row_id</item>
+                <item name="attribute_set_id" xsi:type="string">attribute_set_id</item>
+                <item name="entity_type_id" xsi:type="string">entity_type_id</item>
+                <item name="parent_id" xsi:type="string">parent_id</item>
+                <item name="path" xsi:type="string">path</item>
+                <item name="level" xsi:type="string">level</item>
+                <item name="position" xsi:type="string">position</item>
+                <item name="children_count" xsi:type="string">children_count</item>
+                <item name="created_at" xsi:type="string">created_at</item>
+                <item name="updated_at" xsi:type="string">updated_at</item>
+                <item name="store_id" xsi:type="string">store_id</item>
+                <item name="url_path" xsi:type="string">url_path</item>
+                <item name="all_children" xsi:type="string">all_children</item>
+                <item name="children" xsi:type="string">children</item>
+                <item name="increment_id" xsi:type="string">increment_id</item>
+                <item name="path_in_store" xsi:type="string">path_in_store</item>
+                <item name="custom_layout_update" xsi:type="string">custom_layout_update</item>
+                <item name="available_sort_by" xsi:type="string">available_sort_by</item>
+                <item name="default_sort_by" xsi:type="string">default_sort_by</item>
+                <item name="filter_price_range" xsi:type="string">filter_price_range</item>
+                <item name="automatic_sorting" xsi:type="string">automatic_sorting</item>
+                <item name="category_products" xsi:type="string">category_products</item>
+                <item name="products_position" xsi:type="string">products_position</item>
+                <item name="posted_products" xsi:type="string">posted_products</item>
+            </argument>
+        </arguments>
+    </virtualType>
+
+    <type name="MageDrop\Magento2\Model\Entity\Section\Category\Image">
+        <arguments>
+            <argument name="imageUploader" xsi:type="object">Magento\Catalog\CategoryImageUpload</argument>
+        </arguments>
+    </type>
+
+    <type name="MageDrop\Magento2\Model\Entity\Adapter\Category">
+        <arguments>
+            <argument name="sections" xsi:type="array">
+                <item name="attributes" xsi:type="object">MageDrop\Magento2\Model\Entity\Section\Attributes\Category</item>
+                <item name="image" xsi:type="object">MageDrop\Magento2\Model\Entity\Section\Category\Image</item>
+                <item name="products" xsi:type="object">MageDrop\Magento2\Model\Entity\Section\Category\Products</item>
+            </argument>
+        </arguments>
+    </type>
+
+    <!-- Product: EAV attributes at store scope, media gallery (files + roles), category/website assignments -->
+    <virtualType name="MageDrop\Magento2\Model\Entity\Section\Attributes\Product"
+                 type="MageDrop\Magento2\Model\Entity\Section\Attributes">
+        <arguments>
+            <argument name="eav" xsi:type="boolean">true</argument>
+            <argument name="entityInterface" xsi:type="string">Magento\Catalog\Api\Data\ProductInterface</argument>
+            <argument name="skipBackends" xsi:type="array">
+                <item name="media" xsi:type="string">Magento\Catalog\Model\Product\Attribute\Backend\Media</item>
+                <item name="tierprice" xsi:type="string">Magento\Catalog\Model\Product\Attribute\Backend\Tierprice</item>
+            </argument>
+            <argument name="skipFrontendInputs" xsi:type="array">
+                <item name="media_image" xsi:type="string">media_image</item>
+            </argument>
+            <argument name="ignoredFields" xsi:type="array">
+                <item name="entity_id" xsi:type="string">entity_id</item>
+                <item name="row_id" xsi:type="string">row_id</item>
+                <item name="attribute_set_id" xsi:type="string">attribute_set_id</item>
+                <item name="type_id" xsi:type="string">type_id</item>
+                <item name="sku" xsi:type="string">sku</item>
+                <item name="created_at" xsi:type="string">created_at</item>
+                <item name="updated_at" xsi:type="string">updated_at</item>
+                <item name="store_id" xsi:type="string">store_id</item>
+                <item name="has_options" xsi:type="string">has_options</item>
+                <item name="required_options" xsi:type="string">required_options</item>
+                <item name="url_path" xsi:type="string">url_path</item>
+                <item name="image" xsi:type="string">image</item>
+                <item name="small_image" xsi:type="string">small_image</item>
+                <item name="thumbnail" xsi:type="string">thumbnail</item>
+                <item name="swatch_image" xsi:type="string">swatch_image</item>
+                <item name="image_label" xsi:type="string">image_label</item>
+                <item name="small_image_label" xsi:type="string">small_image_label</item>
+                <item name="thumbnail_label" xsi:type="string">thumbnail_label</item>
+                <item name="media_gallery" xsi:type="string">media_gallery</item>
+                <item name="category_ids" xsi:type="string">category_ids</item>
+                <item name="website_ids" xsi:type="string">website_ids</item>
+                <item name="quantity_and_stock_status" xsi:type="string">quantity_and_stock_status</item>
+                <item name="stock_data" xsi:type="string">stock_data</item>
+                <item name="tier_price" xsi:type="string">tier_price</item>
+                <item name="product_has_weight" xsi:type="string">product_has_weight</item>
+                <item name="affect_product_custom_options" xsi:type="string">affect_product_custom_options</item>
+                <item name="can_save_custom_options" xsi:type="string">can_save_custom_options</item>
+                <item name="save_rewrites_history" xsi:type="string">save_rewrites_history</item>
+                <item name="custom_layout_update" xsi:type="string">custom_layout_update</item>
+                <item name="links_purchased_separately" xsi:type="string">links_purchased_separately</item>
+                <item name="links_title" xsi:type="string">links_title</item>
+                <item name="samples_title" xsi:type="string">samples_title</item>
+                <item name="is_downloadable" xsi:type="string">is_downloadable</item>
+                <item name="price_type" xsi:type="string">price_type</item>
+                <item name="sku_type" xsi:type="string">sku_type</item>
+                <item name="weight_type" xsi:type="string">weight_type</item>
+                <item name="shipment_type" xsi:type="string">shipment_type</item>
+                <item name="price_view" xsi:type="string">price_view</item>
+                <item name="current_store_id" xsi:type="string">current_store_id</item>
+                <item name="current_product_id" xsi:type="string">current_product_id</item>
+                <item name="is_new" xsi:type="string">is_new</item>
+                <item name="options" xsi:type="string">options</item>
+                <item name="product_links" xsi:type="string">product_links</item>
+                <item name="is_salable" xsi:type="string">is_salable</item>
+                <item name="media_gallery_images" xsi:type="string">media_gallery_images</item>
+            </argument>
+        </arguments>
+    </virtualType>
+
+    <type name="MageDrop\Magento2\Model\Entity\Adapter\Product">
+        <arguments>
+            <argument name="sections" xsi:type="array">
+                <item name="attributes" xsi:type="object">MageDrop\Magento2\Model\Entity\Section\Attributes\Product</item>
+                <item name="media_gallery" xsi:type="object">MageDrop\Magento2\Model\Entity\Section\Product\MediaGallery</item>
+                <item name="assignments" xsi:type="object">MageDrop\Magento2\Model\Entity\Section\Product\Assignments</item>
+                <item name="options" xsi:type="object">MageDrop\Magento2\Model\Entity\Section\Product\CustomOptions</item>
+                <item name="tier_price" xsi:type="object">MageDrop\Magento2\Model\Entity\Section\Product\TierPrice</item>
+                <item name="product_links" xsi:type="object">MageDrop\Magento2\Model\Entity\Section\Product\ProductLinks</item>
+                <item name="configurable_links" xsi:type="object">MageDrop\Magento2\Model\Entity\Section\Product\ConfigurableLinks</item>
+            </argument>
         </arguments>
     </type>
 

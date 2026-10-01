@@ -5,6 +5,54 @@ All notable changes to `MageDrop_Magento2` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-10-01
+
+MageDrop 2.0 adds catalog content (categories and products), store-view scope and an
+extension API, and moves staging, deploys and rollbacks into the module. The SaaS keeps
+serving 1.x modules unchanged, so stores can upgrade whenever they are ready.
+
+### Added
+- **Catalog categories** can be staged, quick-previewed, loaded from a release and deployed: every EAV attribute (including custom ones), any image-backend attribute (`image`, `thumbnail`, …) and the "Products in Category" assignments and positions.
+- **Catalog products** (existing products only): every EAV attribute at store-view scope (design fields included), the **media gallery** (new uploads, removals, labels, positions, the hide-from-page flag and every image role as one `media_gallery` change), **category / website assignments**, **customizable options** (`options`, with values), **tier prices**, **related / up-sell / cross-sell links** (`product_links`) and **configurable product associations** (`configurable_links`). The admin POST runs through Magento's own `Initialization\Helper::initializeFromData()`, so custom attributes and third-party form sections that write plain attributes are picked up automatically.
+- **Image roles are read from the product's `media_image` attributes**, so custom roles are staged, deployed and previewed like the core ones.
+- **Store-view scope.** Changes staged from a store-view scoped form deploy to that store view only; "Use Default Value" is staged as an `inherit` change that removes the store override on deploy and is restored on rollback. Fields without a store dimension (global attributes, the gallery's image set, category products, extension sections) are filed under the default scope even when edited from a store view. One release can hold changes for the same entity at several scopes.
+- **Entity adapter architecture.** `Model/Entity/AdapterInterface` + `AdapterPool` describe how to load, diff, apply, preview and snapshot an entity; `Section/SectionHandlerInterface` covers a group of fields. Register your own adapters and section handlers in `di.xml` to make custom entities and form tabs stageable without changing this module.
+- `Section/DescribesValuesInterface`: sections that stage structured values can tell the MageDrop dashboard how to diff them (record identity, labels, nested lists); published on handshake.
+- **Module REST endpoints for the SaaS** (`GET /V1/magedrop/entity/:type/:id`, `POST /V1/magedrop/apply`, `GET /V1/magedrop/capabilities`, guarded by the new ACL resource `MageDrop_Magento2::api`). Deploys, rollbacks and revision restores go through Magento's own models (store scope, image backends, save observers) instead of core `cmsPage`/`cmsBlock` REST.
+- **Open in Magento** deep link (`/<admin>/magedrop/open/index/type/<type>/id/<id>[/store/<id>]`) that works with "Add Secret Key to URLs"; custom entity types resolve through their adapter.
+- **Preview of category listings**: products added to or removed from a category (from the category's product list or a product's categories) and staged positions show on category pages. The change is applied to the page Magento loads, so layered navigation and the product count reflect the live listing.
+- **Media cleanup** (cron `magedrop_clean_staged_media`, daily): removes images staged for releases that never deployed, and gallery images a deploy removed once they can no longer be rolled back to. Configure under **Stores > Configuration > MageDrop > Media Cleanup** (on by default, 30-day retention — effectively the rollback window for removed images).
+- `X-MageDrop-Module-Version` header on every SaaS request and a `POST handshake` that publishes version, features, entity types, value rules and store views.
+- Block-HTML cache key plugin so cached menus (Luma `catalog.topnav`, Hyvä `topmenu_generic`) never leak between preview and live visitors.
+- Category and product revisions captured on admin save (`etc/adminhtml/events.xml`).
+
+### Changed
+- **Staging intercepts the real admin save.** Save & Stage / Quick Preview submit the form with a MageDrop flag; `StageSavePlugin` diffs the exact POST Magento would have persisted against the live entity and sends only the delta. The AJAX `SaveStage`/`QuickPreview` controllers and the flat `form_data` protocol are gone. Staging is only offered for existing entities.
+- All values cross boundaries as typed envelopes (`text`, `json`, `image`, `inherit`). Decimal formatting (`2025.000000` vs `2025.00`), layout "no update" sentinels and untouched attribute defaults no longer stage as changes.
+- **Removing a gallery image never deletes its file.** The image is unlinked from the product so a rollback can restore it; the media cleanup removes it after the retention period.
+- Preview is store-scope aware and matches what a deploy would show: default-scope changes are hidden where the store view overrides the field, and store-view gallery labels/positions/hidden flags and role images win over a default-scope gallery change.
+- A release's preview changes are fetched once and cached for 60 seconds per preview session.
+- Quick Preview result is shown after the redirect via `quick-preview-result.js`.
+- `LoadNotice`, `MageDropButton`, `LoadChanges` and the revision observers are adapter-driven; the hardcoded CMS routing tables are removed.
+- `ping` now requires `MageDrop_Magento2::api` instead of `Magento_Cms::page`.
+
+### Not supported (by design)
+- **Stock and source quantities** are never staged: a content release must not change stock.
+- **Bundle options** and **downloadable links / samples** are not staged: they are tied to orders and files.
+- **Creating entities** cannot be scheduled. Create the entity disabled and stage enabling it.
+
+### Requires
+- MageDrop SaaS with the 2.0 module API (live on magedrop.com).
+- The Magento integration used by MageDrop must be granted **MageDrop → API** (`MageDrop_Magento2::api`); it is the only permission the module needs. "Stores → Settings → All Stores" is optional (lets the dashboard list store views directly). Upgraded integrations without MageDrop → API show the module as disconnected until it is ticked.
+- `bin/magento setup:upgrade && rm -rf generated/code generated/metadata && bin/magento setup:di:compile && bin/magento cache:flush` after upgrading.
+
+### Known limitations
+- Category listing preview: layered navigation filters and counts reflect the live listing; added products are placed by staged position even when sorting by price or name; search results do not reflect staged assignments.
+- Preview does not show related / up-sell / cross-sell products or stock and salability changes; deploy is correct.
+- Configurable products: only the association (which children) is staged; new variations created in the matrix are not, and changing the configurable attributes is rejected at deploy. Stage child product edits on the child products.
+- An empty store-view value is Magento's "use default": deploying an empty text to a store view shows the default value there (the dashboard warns about this).
+- Deploying a gallery change at store-view scope goes through Magento's own gallery handlers, which write per-store label/position rows for every image of that product — the same as an admin save at that store view.
+
 ## [1.0.8] - 2026-06-19
 
 ### Changed
