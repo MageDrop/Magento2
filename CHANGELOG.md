@@ -27,7 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Requires
 - SaaS commit that ships the protocol-2 module API (Value envelopes, scoped preview groups, `POST handshake`).
-- The Magento integration used by the SaaS must be granted **MageDrop → API** (`MageDrop_Magento2::api`). Without it, `ping` still works but deploys fail; the SaaS dashboard shows a warning with instructions.
+- The Magento integration used by the SaaS must be granted **MageDrop → API** (`MageDrop_Magento2::api`). It is the only permission the module needs: `ping` moved to it from `Magento_Cms::page`, so Content → Pages / Blocks are no longer required. Upgraded integrations that lack it report the module as disconnected until it is ticked.
 - `bin/magento setup:upgrade && rm -rf generated && bin/magento setup:di:compile` after upgrading (new webapi/di).
 
 ### Known limitations
