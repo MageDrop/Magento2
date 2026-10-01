@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:framework:Event/etc/events.xsd">
+
+    <!-- Catalog revisions only for admin saves: import/sync jobs save catalog
+         entities in bulk and would flood the revision history. -->
+    <!-- Publish capabilities to the SaaS as soon as the connection is configured -->
+    <event name="admin_system_config_changed_section_magedrop">
+        <observer name="magedrop_config_saved"
+                  instance="MageDrop\Magento2\Observer\ConfigSaved"/>
+    </event>
+
+    <event name="catalog_category_save_after">
+        <observer name="magedrop_revision_catalog_category"
+                  instance="MageDrop\Magento2\Observer\SaveRevision\Category"/>
+    </event>
+
+    <event name="catalog_product_save_after">
+        <observer name="magedrop_revision_catalog_product"
+                  instance="MageDrop\Magento2\Observer\SaveRevision\Product"/>
+    </event>
+
+</config>

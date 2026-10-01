@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:framework:Event/etc/events.xsd">
+
+    <!-- Record a revision when MageDrop itself deploys or rolls back catalog content.
+         SaveRevision ignores REST saves that are not MageDrop applies. -->
+    <event name="catalog_category_save_after">
+        <observer name="magedrop_revision_catalog_category"
+                  instance="MageDrop\Magento2\Observer\SaveRevision\Category"/>
+    </event>
+    <event name="catalog_product_save_after">
+        <observer name="magedrop_revision_catalog_product"
+                  instance="MageDrop\Magento2\Observer\SaveRevision\Product"/>
+    </event>
+
+</config>

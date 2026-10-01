@@ -34,4 +34,50 @@
                 sortOrder="100"/>
     </type>
 
+    <!-- Preview: categories — single loads and menu/list collections (EAV and flat) -->
+    <type name="Magento\Catalog\Model\Category">
+        <plugin name="magedrop_preview_catalog_category"
+                type="MageDrop\Magento2\Plugin\Frontend\Catalog\CategoryPlugin"
+                sortOrder="100"/>
+    </type>
+
+    <type name="Magento\Catalog\Model\ResourceModel\Category\Collection">
+        <plugin name="magedrop_preview_catalog_category_collection"
+                type="MageDrop\Magento2\Plugin\Frontend\Catalog\CategoryCollectionPlugin"
+                sortOrder="100"/>
+    </type>
+
+    <type name="Magento\Catalog\Model\ResourceModel\Category\Flat\Collection">
+        <plugin name="magedrop_preview_catalog_category_flat_collection"
+                type="MageDrop\Magento2\Plugin\Frontend\Catalog\CategoryCollectionPlugin"
+                sortOrder="100"/>
+    </type>
+
+    <!-- Preview: products — repository loads (PDP, cart) and listing collections (search collection inherits) -->
+    <type name="Magento\Catalog\Api\ProductRepositoryInterface">
+        <plugin name="magedrop_preview_catalog_product_repository"
+                type="MageDrop\Magento2\Plugin\Frontend\Catalog\ProductRepositoryPlugin"
+                sortOrder="100"/>
+    </type>
+
+    <!-- Preview: category listings with staged product assignments (index driven) -->
+    <type name="Magento\Catalog\Model\Layer\ItemCollectionProviderInterface">
+        <plugin name="magedrop_preview_category_listing"
+                type="MageDrop\Magento2\Plugin\Frontend\Catalog\CategoryListingPlugin"
+                sortOrder="100"/>
+    </type>
+
+    <type name="Magento\Catalog\Model\ResourceModel\Product\Collection">
+        <plugin name="magedrop_preview_catalog_product_collection"
+                type="MageDrop\Magento2\Plugin\Frontend\Catalog\ProductCollectionPlugin"
+                sortOrder="100"/>
+    </type>
+
+    <!-- Preview: keep block-HTML cache (menus) separate for preview sessions -->
+    <type name="Magento\Framework\View\Element\AbstractBlock">
+        <plugin name="magedrop_preview_block_cache_key"
+                type="MageDrop\Magento2\Plugin\Frontend\BlockCacheKeyPlugin"
+                sortOrder="100"/>
+    </type>
+
 </config>

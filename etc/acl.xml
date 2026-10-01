@@ -4,8 +4,11 @@
     <acl>
         <resources>
             <resource id="Magento_Backend::admin">
-                <resource id="MageDrop_Magento2::releases" title="Releases" sortOrder="100"/>
-                <resource id="MageDrop_Magento2::config" title="MageDrop Configuration" sortOrder="101"/>
+                <resource id="MageDrop_Magento2::magedrop" title="MageDrop" sortOrder="100">
+                    <resource id="MageDrop_Magento2::releases" title="Releases" sortOrder="10"/>
+                    <resource id="MageDrop_Magento2::config" title="Configuration" sortOrder="20"/>
+                    <resource id="MageDrop_Magento2::api" title="API (deploy &amp; rollback access for the MageDrop integration)" sortOrder="30"/>
+                </resource>
             </resource>
         </resources>
     </acl>

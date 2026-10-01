@@ -2,12 +2,11 @@
 <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xsi:noNamespaceSchemaLocation="urn:magento:framework:ObjectManager/etc/config.xsd">
 
-    <!-- MageDrop button virtual types -->
+    <!-- MageDrop button virtual types (one per admin form) -->
     <virtualType name="MageDrop\Magento2\Ui\Component\MageDropButton\CmsPage"
                  type="MageDrop\Magento2\Ui\Component\MageDropButton">
         <arguments>
             <argument name="entityType" xsi:type="string">cms_page</argument>
-            <argument name="entityIdParam" xsi:type="string">page_id</argument>
             <argument name="formName" xsi:type="string">cms_page_form.cms_page_form</argument>
         </arguments>
     </virtualType>
@@ -16,18 +15,31 @@
                  type="MageDrop\Magento2\Ui\Component\MageDropButton">
         <arguments>
             <argument name="entityType" xsi:type="string">cms_block</argument>
-            <argument name="entityIdParam" xsi:type="string">block_id</argument>
             <argument name="formName" xsi:type="string">cms_block_form.cms_block_form</argument>
         </arguments>
     </virtualType>
 
-    <!-- LoadNotice block virtual types -->
+    <virtualType name="MageDrop\Magento2\Ui\Component\MageDropButton\Category"
+                 type="MageDrop\Magento2\Ui\Component\MageDropButton">
+        <arguments>
+            <argument name="entityType" xsi:type="string">catalog_category</argument>
+            <argument name="formName" xsi:type="string">category_form.category_form</argument>
+        </arguments>
+    </virtualType>
+
+    <virtualType name="MageDrop\Magento2\Ui\Component\MageDropButton\Product"
+                 type="MageDrop\Magento2\Ui\Component\MageDropButton">
+        <arguments>
+            <argument name="entityType" xsi:type="string">catalog_product</argument>
+            <argument name="formName" xsi:type="string">product_form.product_form</argument>
+        </arguments>
+    </virtualType>
+
+    <!-- Notice block virtual types -->
     <virtualType name="MageDrop\Magento2\Block\Adminhtml\LoadNotice\CmsPage"
                  type="MageDrop\Magento2\Block\Adminhtml\LoadNotice">
         <arguments>
             <argument name="entityType" xsi:type="string">cms_page</argument>
-            <argument name="entityIdParam" xsi:type="string">page_id</argument>
-            <argument name="editRoute" xsi:type="string">cms/page/edit</argument>
         </arguments>
     </virtualType>
 
@@ -35,8 +47,20 @@
                  type="MageDrop\Magento2\Block\Adminhtml\LoadNotice">
         <arguments>
             <argument name="entityType" xsi:type="string">cms_block</argument>
-            <argument name="entityIdParam" xsi:type="string">block_id</argument>
-            <argument name="editRoute" xsi:type="string">cms/block/edit</argument>
+        </arguments>
+    </virtualType>
+
+    <virtualType name="MageDrop\Magento2\Block\Adminhtml\LoadNotice\Category"
+                 type="MageDrop\Magento2\Block\Adminhtml\LoadNotice">
+        <arguments>
+            <argument name="entityType" xsi:type="string">catalog_category</argument>
+        </arguments>
+    </virtualType>
+
+    <virtualType name="MageDrop\Magento2\Block\Adminhtml\LoadNotice\Product"
+                 type="MageDrop\Magento2\Block\Adminhtml\LoadNotice">
+        <arguments>
+            <argument name="entityType" xsi:type="string">catalog_product</argument>
         </arguments>
     </virtualType>
 
@@ -44,31 +68,53 @@
          Magento bug: di:compile can't generate interceptors for virtual types.
          See https://github.com/magento/magento2/issues/36387 -->
 
-    <!-- Intercept CMS Page save -->
+    <!-- Intercept admin saves flagged for staging / quick preview -->
     <type name="Magento\Cms\Controller\Adminhtml\Page\Save">
         <plugin name="magedrop_stage_cms_page"
                 type="MageDrop\Magento2\Plugin\Adminhtml\Stage\CmsPageStageSavePlugin"
                 sortOrder="10"/>
     </type>
 
-    <!-- Intercept CMS Block save -->
     <type name="Magento\Cms\Controller\Adminhtml\Block\Save">
         <plugin name="magedrop_stage_cms_block"
                 type="MageDrop\Magento2\Plugin\Adminhtml\Stage\CmsBlockStageSavePlugin"
                 sortOrder="10"/>
     </type>
 
-    <!-- Load staged changes into CMS Page form -->
+    <type name="Magento\Catalog\Controller\Adminhtml\Category\Save">
+        <plugin name="magedrop_stage_catalog_category"
+                type="MageDrop\Magento2\Plugin\Adminhtml\Stage\CategoryStageSavePlugin"
+                sortOrder="10"/>
+    </type>
+
+    <type name="Magento\Catalog\Controller\Adminhtml\Product\Save">
+        <plugin name="magedrop_stage_catalog_product"
+                type="MageDrop\Magento2\Plugin\Adminhtml\Stage\ProductStageSavePlugin"
+                sortOrder="10"/>
+    </type>
+
+    <!-- Load staged changes into edit forms (?magedrop_load=<release>) -->
     <type name="Magento\Cms\Model\Page\DataProvider">
         <plugin name="magedrop_load_changes_page"
                 type="MageDrop\Magento2\Plugin\Adminhtml\DataProvider\CmsPageLoadChangesPlugin"
                 sortOrder="10"/>
     </type>
 
-    <!-- Load staged changes into CMS Block form -->
     <type name="Magento\Cms\Model\Block\DataProvider">
         <plugin name="magedrop_load_changes_block"
                 type="MageDrop\Magento2\Plugin\Adminhtml\DataProvider\CmsBlockLoadChangesPlugin"
+                sortOrder="10"/>
+    </type>
+
+    <type name="Magento\Catalog\Model\Category\DataProvider">
+        <plugin name="magedrop_load_changes_category"
+                type="MageDrop\Magento2\Plugin\Adminhtml\DataProvider\CategoryLoadChangesPlugin"
+                sortOrder="10"/>
+    </type>
+
+    <type name="Magento\Catalog\Ui\DataProvider\Product\Form\ProductDataProvider">
+        <plugin name="magedrop_load_changes_product"
+                type="MageDrop\Magento2\Plugin\Adminhtml\DataProvider\ProductLoadChangesPlugin"
                 sortOrder="10"/>
     </type>
 

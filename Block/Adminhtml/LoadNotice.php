@@ -4,18 +4,26 @@ declare(strict_types=1);
 
 namespace MageDrop\Magento2\Block\Adminhtml;
 
+use MageDrop\Magento2\Model\Entity\AdapterPool;
 use MageDrop\Magento2\Model\Service\ApiClient;
+use MageDrop\Magento2\Plugin\Adminhtml\StageSavePlugin;
 use Magento\Backend\Block\Template;
 use Magento\Backend\Block\Template\Context;
+use Magento\Backend\Model\Session as BackendSession;
 
+/**
+ * Post-redirect notices on entity edit forms:
+ *  - ?magedrop_load=<release>  → banner "N field(s) loaded from release X"
+ *  - ?magedrop_preview=1       → Quick Preview result modal (URL held in the backend session)
+ */
 class LoadNotice extends Template
 {
     public function __construct(
         Context $context,
         private ApiClient $apiClient,
+        private AdapterPool $adapterPool,
+        private BackendSession $backendSession,
         private string $entityType = '',
-        private string $entityIdParam = '',
-        private string $editRoute = '',
         array $data = []
     ) {
         parent::__construct($context, $data);
@@ -26,19 +34,37 @@ class LoadNotice extends Template
         return (int) $this->getRequest()->getParam('magedrop_load', 0);
     }
 
-    public function isActive(): bool
-    {
-        return $this->getReleaseId() > 0 && $this->apiClient->isEnabled();
-    }
-
     protected function _toHtml(): string
     {
-        if (!$this->isActive()) {
+        if (!$this->apiClient->isEnabled()) {
             return '';
         }
 
+        $html = '';
+
+        if ($this->getReleaseId() > 0) {
+            $html .= $this->renderLoadNotice();
+        }
+
+        if ($this->getRequest()->getParam('magedrop_preview')) {
+            $html .= $this->renderPreviewResult();
+        }
+
+        return $html;
+    }
+
+    private function renderLoadNotice(): string
+    {
         $releaseId = $this->getReleaseId();
-        $entityId = (string) ($this->getRequest()->getParam($this->entityIdParam) ?? '');
+
+        try {
+            $adapter = $this->adapterPool->get($this->entityType);
+        } catch (\Throwable) {
+            return '';
+        }
+
+        $entityId = (string) ($adapter->resolveEntityId($this->getRequest()) ?? '');
+        $storeId = $adapter->resolveStoreId($this->getRequest());
 
         $config = [
             'releaseId' => $releaseId,
@@ -46,23 +72,44 @@ class LoadNotice extends Template
             'releaseName' => '',
         ];
 
-        $releases = $this->apiClient->getReleases();
-        foreach ($releases as $release) {
-            if ((int) $release['id'] === $releaseId) {
-                $config['releaseName'] = $release['name'];
+        foreach ($this->apiClient->getReleases() as $release) {
+            if ((int) ($release['id'] ?? 0) === $releaseId) {
+                $config['releaseName'] = (string) ($release['name'] ?? '');
                 break;
             }
         }
 
-        if ($entityId) {
-            $changes = $this->apiClient->getPreviewChanges($releaseId, $this->entityType, $entityId);
-            $config['changeCount'] = count($changes);
+        if ($entityId !== '') {
+            foreach ($this->apiClient->getPreviewChanges($releaseId, $this->entityType, $entityId) as $group) {
+                $scope = (int) ($group['scope_store_id'] ?? 0);
+                if ($scope === 0 || $scope === $storeId) {
+                    $config['changeCount'] += count($group['changes']);
+                }
+            }
         }
 
-        $config['dismissUrl'] = $this->getUrl($this->editRoute, [$this->entityIdParam => $entityId]);
+        $config['dismissUrl'] = $this->getUrl($adapter->getEditRoute(), $adapter->getEditParams($entityId, $storeId));
 
-        $json = json_encode(['MageDrop_Magento2/js/load-notice' => $config]);
+        return $this->initScript(['MageDrop_Magento2/js/load-notice' => $config]);
+    }
 
-        return '<script type="text/x-magento-init">{"*": ' . $json . '}</script>';
+    private function renderPreviewResult(): string
+    {
+        $result = $this->backendSession->getData(StageSavePlugin::SESSION_PREVIEW_RESULT, true);
+        if (!is_array($result) || empty($result['preview_url'])) {
+            return '';
+        }
+
+        return $this->initScript([
+            'MageDrop_Magento2/js/quick-preview-result' => [
+                'previewUrl' => (string) $result['preview_url'],
+                'changeCount' => (int) ($result['change_count'] ?? 0),
+            ],
+        ]);
+    }
+
+    private function initScript(array $components): string
+    {
+        return '<script type="text/x-magento-init">{"*": ' . json_encode($components) . '}</script>';
     }
 }
