@@ -67,7 +67,7 @@ To make a custom form section stageable (e.g. a third-party product tab), implem
 
 | Route | Purpose | ACL |
 |---|---|---|
-| `GET /V1/magedrop/ping` | round-trip connection test | `Magento_Cms::page` |
+| `GET /V1/magedrop/ping` | round-trip connection test | `MageDrop_Magento2::api` |
 | `GET /V1/magedrop/capabilities` | module version, features, entity types | `MageDrop_Magento2::api` |
 | `GET /V1/magedrop/entity/:type/:id?storeId=` | current normalised state at a store scope | `MageDrop_Magento2::api` |
 | `POST /V1/magedrop/apply` | apply values at a store scope, returns previous values for rollback | `MageDrop_Magento2::api` |
