@@ -8,6 +8,7 @@ use MageDrop\Magento2\Model\Entity\Section\SectionHandlerInterface;
 use MageDrop\Magento2\Model\Entity\Value;
 use MageDrop\Magento2\Model\Media\StagedMediaLog;
 use Magento\Catalog\Api\Data\ProductInterface;
+use Magento\Catalog\Model\Attribute\ScopeOverriddenValue;
 use Magento\Catalog\Model\Product;
 use Magento\Catalog\Model\Product\Media\Config as MediaConfig;
 use Magento\Catalog\Model\ResourceModel\Product\Gallery as GalleryResource;
@@ -30,18 +31,19 @@ use Magento\Store\Model\Store;
  *
  * Apply time: entries without a value_id are inserted directly into the
  * gallery tables (the core handler would otherwise try to move them from tmp
- * again and fail), then the normal product save handles labels, positions,
- * roles and removals at the requested store scope.
+ * again and fail) and removed images are unlinked from the product directly
+ * (never via the core "removed" flag, which deletes the file and would make
+ * rollback impossible); the normal product save then handles labels,
+ * positions and roles at the requested store scope.
  */
 class MediaGallery implements SectionHandlerInterface
 {
     public const FIELD = 'media_gallery';
-    public const ROLES = ['image', 'small_image', 'thumbnail', 'swatch_image'];
     public const VIDEO_KEYS = ['video_url', 'video_title', 'video_description', 'video_provider', 'video_metadata'];
 
     /**
      * @param string[] $extraKeys additional per-image keys a third-party module stores on
-     *                            gallery rows (e.g. "ordorite_options"); carried through
+     *                            gallery rows (e.g. a per-image option mapping); carried through
      *                            staging, apply and overlay untouched. Configure via di.xml.
      */
     public function __construct(
@@ -51,6 +53,7 @@ class MediaGallery implements SectionHandlerInterface
         private GalleryResource $galleryResource,
         private MetadataPool $metadataPool,
         private StagedMediaLog $stagedMediaLog,
+        private ScopeOverriddenValue $scopeOverriddenValue,
         private array $extraKeys = []
     ) {
         // External video entries carry their metadata on the gallery row
@@ -65,7 +68,7 @@ class MediaGallery implements SectionHandlerInterface
         }
 
         $roleFiles = [];
-        foreach (self::ROLES as $role) {
+        foreach ($this->roles() as $role) {
             $value = $post[$role] ?? null;
             if (is_string($value) && $value !== '' && $value !== 'no_selection') {
                 $roleFiles[$role] = $value;
@@ -128,9 +131,13 @@ class MediaGallery implements SectionHandlerInterface
         return $field === self::FIELD;
     }
 
+    /**
+     * The set of images is global; only per-image label/position/hidden and the roles
+     * have store values, and overlay() merges those itself.
+     */
     public function isScopable(DataObject $entity, string $field): bool
     {
-        return true;
+        return false;
     }
 
     public function isOverridden(DataObject $entity, string $field, int $storeId): bool
@@ -184,13 +191,15 @@ class MediaGallery implements SectionHandlerInterface
                 : ($currentByFile[$file]['value_id'] ?? null);
 
             if (!$valueId) {
-                // Brand-new file (already in its final location since staging): insert the rows ourselves
-                $valueId = (int) $this->galleryResource->insertGallery([
-                    'attribute_id' => $attributeId,
-                    'media_type' => (string) ($entry['media_type'] ?? 'image'),
-                    'value' => $file,
-                    'disabled' => 0,
-                ]);
+                // An image unlinked by an earlier deploy (rollback) keeps its gallery row: re-link it.
+                // Otherwise it is a brand-new file (moved to its final location at staging time).
+                $valueId = $this->unlinkedGalleryRow((int) ($entry['value_id'] ?? 0), $file)
+                    ?? (int) $this->galleryResource->insertGallery([
+                        'attribute_id' => $attributeId,
+                        'media_type' => (string) ($entry['media_type'] ?? 'image'),
+                        'value' => $file,
+                        'disabled' => 0,
+                    ]);
                 $this->galleryResource->bindValueToEntity($valueId, $linkValue);
                 $this->galleryResource->insertGalleryValueInStore([
                     'value_id' => $valueId,
@@ -213,28 +222,22 @@ class MediaGallery implements SectionHandlerInterface
                 'removed' => '',
             ] + $this->extras($entry);
             foreach ((array) ($entry['roles'] ?? []) as $role) {
-                if (in_array($role, self::ROLES, true)) {
+                if (in_array($role, $this->roles(), true)) {
                     $roles[$role] = $file;
                 }
             }
         }
 
-        foreach ($currentByValueId as $valueId => $entry) {
+        // Unlink removed images ourselves: flagging them "removed" makes the core handler delete
+        // the file when no other product uses it, and rollback could never bring it back
+        foreach (array_keys($currentByValueId) as $valueId) {
             if (!isset($seen[$valueId])) {
-                $images[$valueId] = [
-                    'value_id' => $valueId,
-                    'file' => $entry['file'],
-                    'media_type' => $entry['media_type'],
-                    'label' => $entry['label'],
-                    'position' => $entry['position'],
-                    'disabled' => $entry['disabled'],
-                    'removed' => 1,
-                ];
+                $this->unlinkImage((int) $valueId, $linkValue);
             }
         }
 
         $entity->setData(self::FIELD, ['images' => array_values($images)]);
-        foreach (self::ROLES as $role) {
+        foreach ($this->roles() as $role) {
             $entity->setData($role, $roles[$role] ?? 'no_selection');
         }
         $entity->unsetData('media_gallery_images');
@@ -247,6 +250,9 @@ class MediaGallery implements SectionHandlerInterface
         }
         $staged = is_array($values[self::FIELD]->value) ? $values[self::FIELD]->value : [];
 
+        $storeId = (int) $entity->getStoreId();
+        $storeValues = $storeId !== Store::DEFAULT_STORE_ID ? $this->storeImageValues($entity) : [];
+
         $images = [];
         $roles = [];
         $synthetic = -1;
@@ -255,7 +261,8 @@ class MediaGallery implements SectionHandlerInterface
                 continue;
             }
             $valueId = !empty($entry['value_id']) ? (int) $entry['value_id'] : $synthetic--;
-            $images[$valueId] = [
+            // Store-view label/position/hidden rows win over a default-scope change, as after deploy
+            $images[$valueId] = ($storeValues[$valueId] ?? []) + [
                 'value_id' => $valueId,
                 'file' => (string) $entry['file'],
                 'media_type' => (string) ($entry['media_type'] ?? 'image'),
@@ -264,16 +271,24 @@ class MediaGallery implements SectionHandlerInterface
                 'disabled' => !empty($entry['disabled']) ? 1 : 0,
             ] + $this->extras($entry);
             foreach ((array) ($entry['roles'] ?? []) as $role) {
-                if (in_array($role, self::ROLES, true)) {
+                if (in_array($role, $this->roles(), true)) {
                     $roles[$role] = (string) $entry['file'];
                     $roles[$role . '_label'] = (string) ($entry['label'] ?? '');
                 }
             }
         }
 
+        // The frontend renders gallery images in array order, as loaded (sorted by position)
+        uasort($images, fn (array $a, array $b) => $a['position'] <=> $b['position']);
+
         $entity->setData(self::FIELD, ['images' => $images]);
         $entity->unsetData('media_gallery_images');
-        foreach (self::ROLES as $role) {
+        foreach ($this->roles() as $role) {
+            if ($storeId !== Store::DEFAULT_STORE_ID && $entity instanceof Product
+                && $this->scopeOverriddenValue->containsValue(ProductInterface::class, $entity, $role, $storeId)
+            ) {
+                continue; // the store view keeps its own role image
+            }
             $entity->setData($role, $roles[$role] ?? 'no_selection');
             $entity->setData($role . '_label', $roles[$role . '_label'] ?? null);
         }
@@ -304,14 +319,14 @@ class MediaGallery implements SectionHandlerInterface
                 'url' => $this->mediaConfig->getMediaUrl((string) $entry['file']),
             ] + $this->extras($entry);
             foreach ((array) ($entry['roles'] ?? []) as $role) {
-                if (in_array($role, self::ROLES, true)) {
+                if (in_array($role, $this->roles(), true)) {
                     $roles[$role] = (string) $entry['file'];
                 }
             }
         }
 
         $data[self::FIELD] = ['images' => $images];
-        foreach (self::ROLES as $role) {
+        foreach ($this->roles() as $role) {
             $data[$role] = $roles[$role] ?? 'no_selection';
         }
 
@@ -321,13 +336,60 @@ class MediaGallery implements SectionHandlerInterface
     /**
      * @return array<int, array<string, mixed>>
      */
+    /**
+     * Per-image values the store view has its own gallery rows for, keyed by value_id.
+     * Read from the table: a store row equal to the default still wins after deploy.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function storeImageValues(DataObject $entity): array
+    {
+        if (!$entity->getId()) {
+            return [];
+        }
+        $connection = $this->galleryResource->getConnection();
+        $rows = $connection->fetchAll(
+            $connection->select()
+                ->from($this->galleryResource->getTable(GalleryResource::GALLERY_VALUE_TABLE), ['value_id', 'label', 'position', 'disabled'])
+                ->where($this->linkField() . ' = ?', $this->linkValue($entity))
+                ->where('store_id = ?', (int) $entity->getStoreId())
+        );
+
+        $overrides = [];
+        foreach ($rows as $row) {
+            $values = [];
+            if ($row['label'] !== null) {
+                $values['label'] = (string) $row['label'];
+            }
+            if ($row['position'] !== null) {
+                $values['position'] = (int) $row['position'];
+            }
+            if ($row['disabled'] !== null) {
+                $values['disabled'] = (int) $row['disabled'];
+            }
+            $overrides[(int) $row['value_id']] = $values;
+        }
+
+        return $overrides;
+    }
+
+    /**
+     * Image role attributes (frontend input "media_image"), including custom ones.
+     *
+     * @return string[]
+     */
+    public function roles(): array
+    {
+        return $this->mediaConfig->getMediaAttributeCodes();
+    }
+
     private function currentEntries(Product $product): array
     {
         $gallery = $product->getData(self::FIELD);
         $images = is_array($gallery) && isset($gallery['images']) && is_array($gallery['images']) ? $gallery['images'] : [];
 
         $roleFiles = [];
-        foreach (self::ROLES as $role) {
+        foreach ($this->roles() as $role) {
             $value = $product->getData($role);
             if (is_string($value) && $value !== '' && $value !== 'no_selection') {
                 $roleFiles[$value][] = $role;
@@ -437,6 +499,30 @@ class MediaGallery implements SectionHandlerInterface
         $this->stagedMediaLog->record($this->mediaConfig->getMediaPath($destination), 'product_gallery');
 
         return $destination;
+    }
+
+    private function unlinkedGalleryRow(int $valueId, string $file): ?int
+    {
+        if ($valueId <= 0) {
+            return null;
+        }
+        $connection = $this->galleryResource->getConnection();
+        $found = $connection->fetchOne(
+            $connection->select()
+                ->from($this->galleryResource->getMainTable(), ['value_id'])
+                ->where('value_id = ?', $valueId)
+                ->where('value = ?', $file)
+        );
+
+        return $found !== false ? (int) $found : null;
+    }
+
+    private function unlinkImage(int $valueId, int $linkValue): void
+    {
+        $connection = $this->galleryResource->getConnection();
+        $where = ['value_id = ?' => $valueId, $this->linkField() . ' = ?' => $linkValue];
+        $connection->delete($this->galleryResource->getTable(GalleryResource::GALLERY_VALUE_TABLE), $where);
+        $connection->delete($this->galleryResource->getTable(GalleryResource::GALLERY_VALUE_TO_ENTITY_TABLE), $where);
     }
 
     private function linkField(): string

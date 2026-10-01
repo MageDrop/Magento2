@@ -92,8 +92,22 @@ final class Value
         return match ($this->type) {
             self::TYPE_INHERIT => true,
             self::TYPE_JSON => json_encode($this->value) === json_encode($other->value),
-            default => trim((string) $this->value) === trim((string) $other->value),
+            default => self::sameText((string) $this->value, (string) $other->value),
         };
+    }
+
+    /**
+     * Decimal attributes load as "2025.000000" but the form posts "2025.00".
+     */
+    private static function sameText(string $a, string $b): bool
+    {
+        $a = trim($a);
+        $b = trim($b);
+        if ($a === $b) {
+            return true;
+        }
+
+        return is_numeric($a) && is_numeric($b) && (float) $a === (float) $b;
     }
 
     public function isEmptyLike(): bool

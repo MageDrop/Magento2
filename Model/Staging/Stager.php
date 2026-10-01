@@ -38,7 +38,36 @@ class Stager
             return $delta + ['response' => []];
         }
 
-        $response = $this->apiClient->stageDelta($releaseId, $this->payload($delta));
+        // Fields with no store dimension (global attributes, gallery set, third-party sections)
+        // belong to the default scope even when edited from a store view
+        $scoped = $delta;
+        $global = $delta;
+        $scoped['changes'] = [];
+        $global['changes'] = [];
+        $global['store_id'] = Store::DEFAULT_STORE_ID;
+        foreach ($delta['changes'] as $change) {
+            $isScoped = $delta['store_id'] !== Store::DEFAULT_STORE_ID
+                && ($change['staged']->isInherit() || $delta['adapter']->isScopable($delta['entity'], $change['field']));
+            if ($isScoped) {
+                $scoped['changes'][] = $change;
+            } else {
+                $global['changes'][] = $change;
+            }
+        }
+
+        $response = [];
+        $staged = 0;
+        foreach ([$global, $scoped] as $group) {
+            if (!$group['changes']) {
+                continue;
+            }
+            $response = $this->apiClient->stageDelta($releaseId, $this->payload($group));
+            if (empty($response) || !empty($response['error'])) {
+                return $delta + ['response' => $response];
+            }
+            $staged += count($group['changes']);
+        }
+        $response['change_count'] = $staged;
 
         return $delta + ['response' => $response];
     }
@@ -87,6 +116,7 @@ class Stager
 
         return [
             'adapter' => $adapter,
+            'entity' => $entity,
             'entity_id' => $entityId,
             'store_id' => $storeId,
             'title' => $adapter->getTitle($entity),

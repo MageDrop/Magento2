@@ -20,6 +20,7 @@ use Magento\Store\Model\Store;
  *  - ignoredPrefixes  : form key prefixes to skip
  *  - skipBackends     : attribute backend classes owned by other sections (e.g. image backend)
  *  - boolFields       : keys posted as "true"/"false" strings by the admin form
+ *  - skipFrontendInputs : attribute frontend inputs owned by other sections (e.g. media_image roles)
  */
 class Attributes implements SectionHandlerInterface
 {
@@ -30,6 +31,7 @@ class Attributes implements SectionHandlerInterface
      * @param string[] $ignoredPrefixes
      * @param string[] $skipBackends
      * @param string[] $boolFields
+     * @param string[] $skipFrontendInputs
      */
     public function __construct(
         private ScopeOverriddenValue $scopeOverriddenValue,
@@ -38,7 +40,8 @@ class Attributes implements SectionHandlerInterface
         private array $ignoredFields = [],
         private array $ignoredPrefixes = ['use_default_', 'use_config_', 'magedrop_'],
         private array $skipBackends = [],
-        private array $boolFields = []
+        private array $boolFields = [],
+        private array $skipFrontendInputs = []
     ) {
     }
 
@@ -124,11 +127,17 @@ class Attributes implements SectionHandlerInterface
             }
         }
         if (!$this->eav) {
-            return true;
+            // Flat entities: only real columns are content (plugins add computed keys on load)
+            $columns = $this->tableColumns($entity);
+
+            return $columns === null || isset($columns[$field]);
         }
 
         $attribute = $this->getAttribute($entity, $field);
         if (!$attribute) {
+            return false;
+        }
+        if ($this->skipFrontendInputs && in_array($attribute->getFrontendInput(), $this->skipFrontendInputs, true)) {
             return false;
         }
         foreach ($this->skipBackends as $backendClass) {
@@ -222,6 +231,34 @@ class Attributes implements SectionHandlerInterface
         }
 
         return array_keys($entity->getData());
+    }
+
+    /** @var array<string, array<string, true>> */
+    private array $columnCache = [];
+
+    /**
+     * @return array<string, true>|null null when the entity has no single main table
+     */
+    private function tableColumns(DataObject $entity): ?array
+    {
+        if (!method_exists($entity, 'getResource')) {
+            return null;
+        }
+        try {
+            $resource = $entity->getResource();
+            if (!method_exists($resource, 'getMainTable')) {
+                return null;
+            }
+            $table = $resource->getMainTable();
+            if (!isset($this->columnCache[$table])) {
+                $columns = $resource->getConnection()->describeTable($table);
+                $this->columnCache[$table] = array_fill_keys(array_keys($columns), true);
+            }
+
+            return $this->columnCache[$table];
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     private function getAttribute(DataObject $entity, string $field): ?AbstractAttribute

@@ -39,6 +39,17 @@ class DifferTest extends TestCase
         $this->assertTrue($changes[0]['staged']->isInherit());
     }
 
+    public function testUnsetSelectPostingEmptyForStoredZeroIsIgnored(): void
+    {
+        $entity = new DataObject(['banner_promo' => '0', 'title' => 'Old']);
+        $post = ['banner_promo' => '', 'title' => 'New'];
+
+        $changes = (new Differ())->diff($this->adapter([]), $entity, $post, 0);
+
+        $this->assertCount(1, $changes);
+        $this->assertSame('title', $changes[0]['field']);
+    }
+
     private function adapter(array $overriddenFields): AbstractAdapter
     {
         $section = new class ($overriddenFields) implements SectionHandlerInterface {

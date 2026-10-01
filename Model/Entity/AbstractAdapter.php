@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MageDrop\Magento2\Model\Entity;
 
+use MageDrop\Magento2\Model\Entity\Section\DescribesValuesInterface;
 use MageDrop\Magento2\Model\Entity\Section\SectionHandlerInterface;
 use Magento\Framework\App\RequestInterface;
 use Magento\Framework\DataObject;
@@ -191,7 +192,20 @@ abstract class AbstractAdapter implements AdapterInterface
             'supports_scope' => $this->supportsStoreScope,
             'edit_route' => $this->editRoute,
             'id_param' => $this->idParam,
+            'value_rules' => $this->valueRules(),
         ];
+    }
+
+    private function valueRules(): array
+    {
+        $rules = [];
+        foreach ($this->sections as $section) {
+            if ($section instanceof DescribesValuesInterface) {
+                $rules += $section->describeValues();
+            }
+        }
+
+        return $rules;
     }
 
     protected function sectionFor(string $field, DataObject $entity): ?SectionHandlerInterface

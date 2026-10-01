@@ -39,6 +39,14 @@ class ValueTest extends TestCase
         $this->assertTrue(Value::inherit()->equals(Value::inherit()));
     }
 
+    public function testNumericStringsCompareByValue(): void
+    {
+        $this->assertTrue(Value::text('2025.000000')->equals(Value::text('2025.00')));
+        $this->assertTrue(Value::text('80.000000')->equals(Value::text('80')));
+        $this->assertFalse(Value::text('2025.00')->equals(Value::text('2025.01')));
+        $this->assertFalse(Value::text('0')->equals(Value::text('')));
+    }
+
     public function testRoundTripsThroughArray(): void
     {
         $image = Value::image('/media/catalog/category/x.jpg', 'https://shop.test/media/catalog/category/x.jpg');
