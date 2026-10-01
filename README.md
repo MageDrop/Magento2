@@ -1,6 +1,6 @@
 # MageDrop_Magento2
 
-Magento 2 companion module for [MageDrop](https://magentoscheduler-production.up.railway.app) — stage, preview, and deploy CMS content changes as coordinated releases.
+Magento 2 companion module for [MageDrop](https://www.magedrop.com) — stage, preview, and deploy CMS and catalog content changes as coordinated releases.
 
 ## Requirements
 
@@ -32,11 +32,47 @@ Navigate to **Stores > Configuration > MageDrop > Connection** and enter:
 
 ### MageDrop Button
 
-A branded split button appears on CMS Page and Block edit forms with three actions:
+A branded split button appears on CMS Page, CMS Block, Category and Product edit forms with three actions:
 
-- **Quick Preview** — stages the current form data to a temporary release and opens a preview in a new tab
+- **Quick Preview** — diffs the form against the live entity, stages the delta to a temporary release and shows a shareable preview link
 - **Load from Release** — loads staged changes from a release into the edit form so you can review them
-- **Save & Stage** — stages the current form data to a selected release via AJAX
+- **Save & Stage** — submits the real admin form flagged for MageDrop; the save is intercepted, diffed against the live entity at the current store view, and only the delta is staged. Nothing is saved to the live store.
+
+Categories support store-view scope: stage from a store-view scoped form and the change deploys to that store view only. Ticking **Use Default Value** stages an `inherit` change that removes the override on deploy.
+
+### Entity adapters (extension point)
+
+Every entity type is an `AdapterInterface` registered in the `AdapterPool` DI argument (`etc/di.xml`). An adapter owns a list of `SectionHandlerInterface` implementations, each covering a group of fields:
+
+| Handler | Fields |
+|---|---|
+| `Section\Attributes` | scalar / EAV attributes, "Use Default Value" → `inherit` |
+| `Section\Category\Image` | `image`, `thumbnail` and any category attribute with the image backend |
+| `Section\Category\Products` | "Products in Category" assignments |
+| `Section\Product\MediaGallery` | product images: files, labels, positions, disabled flag, base/small/thumbnail/swatch roles |
+| `Section\Product\Assignments` | product `category_ids` and `website_ids` |
+| `Section\Product\CustomOptions` | customizable options and their values |
+| `Section\Product\TierPrice` | tier prices |
+| `Section\Product\ProductLinks` | related / up-sell / cross-sell links |
+| `Section\Product\Stock` | stock item fields (qty, in stock, Advanced Inventory) |
+| `Section\Product\BundleOptions` | bundle options and selections |
+| `Section\Product\ConfigurableLinks` | configurable child associations |
+| `Section\Product\DownloadableLinks` | downloadable links and samples |
+
+Product section handlers receive the initialised product data plus two extra keys: `_post` (the raw admin POST) and `_form_product` (the product model after `initializeFromData`). A third-party handler for a custom product-form tab (for example a fabric mapping stored in its own table) reads its rows from `_post['product'][...]`, compares them with what it loads for the product, writes them on `apply()`, and can set a data key on the product in `overlay()` for its own frontend code to pick up during preview.
+
+To make a custom form section stageable (e.g. a third-party product tab), implement `SectionHandlerInterface` and add it to the adapter's `sections` array in your own `di.xml`. To add a whole new entity type, implement `AdapterInterface` (extend `AbstractAdapter`) and register it under a new key in `AdapterPool`; the SaaS picks it up from the handshake.
+
+### REST endpoints used by the SaaS
+
+| Route | Purpose | ACL |
+|---|---|---|
+| `GET /V1/magedrop/ping` | round-trip connection test | `Magento_Cms::page` |
+| `GET /V1/magedrop/capabilities` | module version, features, entity types | `MageDrop_Magento2::api` |
+| `GET /V1/magedrop/entity/:type/:id?storeId=` | current normalised state at a store scope | `MageDrop_Magento2::api` |
+| `POST /V1/magedrop/apply` | apply values at a store scope, returns previous values for rollback | `MageDrop_Magento2::api` |
+
+The integration created for MageDrop must be granted **MageDrop → API**.
 
 ### Preview Bar
 
@@ -65,11 +101,11 @@ Magento Admin                         MageDrop SaaS
 +------------------+                 +------------------+
 ```
 
-1. **Staging** — When you save & stage, the module sends the form data to the SaaS. The SaaS diffs it against what's live (via the Magento REST API) and stores only the changed fields.
+1. **Staging** — Save & Stage submits the real admin form with a MageDrop flag. A plugin on the Save controller loads the entity at the requested store view, diffs the POST against it through the entity adapter's section handlers, and sends only the changed fields (as typed value envelopes) to the SaaS.
 
-2. **Preview** — The module's frontend plugins intercept CMS page/block loading and overlay staged values in-memory. FPC is handled via a vary key (`releaseId:changesHash`) so previewed and non-previewed visitors get different cached pages.
+2. **Preview** — Frontend plugins overlay staged values in-memory on CMS pages/blocks and on categories (single loads and menu collections), honouring store-view scope. FPC is varied by `releaseId:changesHash`; block-HTML cache keys include the same token.
 
-3. **Deploy** — The SaaS pushes staged changes back to Magento via the REST API at the scheduled time. Rollback values are captured at deploy time for safe reversals.
+3. **Deploy** — At the scheduled time the SaaS calls `POST /V1/magedrop/apply` for each entity/scope. The module applies the values with Magento's own models (so store scope, image backends and save observers behave exactly as an admin save) and returns the previous values, which the SaaS keeps for rollback.
 
 ## Compatibility
 

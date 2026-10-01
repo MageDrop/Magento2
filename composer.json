@@ -1,14 +1,24 @@
 {
     "name": "magedrop/magento2",
-    "description": "MageDrop companion module for Magento 2 — stage, preview, and deploy CMS content changes",
+    "description": "MageDrop companion module for Magento 2 — stage, preview, and deploy CMS and catalog content changes as coordinated releases",
     "type": "magento2-module",
     "license": "proprietary",
-    "version": "1.0.8",
+    "version": "2.0.0",
     "require": {
         "php": "^8.2",
         "magento/framework": "^103.0",
         "magento/module-cms": "^104.0",
-        "magento/module-backend": "^102.0"
+        "magento/module-backend": "^102.0",
+        "magento/module-catalog": "^104.0",
+        "magento/module-eav": "^102.1",
+        "magento/module-store": "^101.1",
+        "magento/module-media-storage": "^100.4",
+        "magento/module-ui": "^101.2",
+        "magento/module-catalog-inventory": "^100.4",
+        "magento/module-bundle": "^101.0",
+        "magento/module-configurable-product": "^100.4",
+        "magento/module-downloadable": "^100.4",
+        "magento/module-customer": "^103.0"
     },
     "autoload": {
         "files": [

@@ -1,10 +1,31 @@
 <?xml version="1.0"?>
 <routes xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Webapi:etc/webapi.xsd">
+    <!-- Ping keeps the permission 1.x integrations were created with so an
+         upgraded store still reports "module connected"; the SaaS then checks
+         /capabilities to detect a missing MageDrop_Magento2::api grant. -->
     <route url="/V1/magedrop/ping" method="GET">
         <service class="MageDrop\Magento2\Api\PingInterface" method="ping"/>
         <resources>
             <resource ref="Magento_Cms::page"/>
+        </resources>
+    </route>
+    <route url="/V1/magedrop/capabilities" method="GET">
+        <service class="MageDrop\Magento2\Api\EntityManagementInterface" method="capabilities"/>
+        <resources>
+            <resource ref="MageDrop_Magento2::api"/>
+        </resources>
+    </route>
+    <route url="/V1/magedrop/entity/:type/:id" method="GET">
+        <service class="MageDrop\Magento2\Api\EntityManagementInterface" method="getState"/>
+        <resources>
+            <resource ref="MageDrop_Magento2::api"/>
+        </resources>
+    </route>
+    <route url="/V1/magedrop/apply" method="POST">
+        <service class="MageDrop\Magento2\Api\EntityManagementInterface" method="apply"/>
+        <resources>
+            <resource ref="MageDrop_Magento2::api"/>
         </resources>
     </route>
 </routes>

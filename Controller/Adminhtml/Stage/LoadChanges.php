@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MageDrop\Magento2\Controller\Adminhtml\Stage;
 
+use MageDrop\Magento2\Model\Entity\AdapterPool;
 use MageDrop\Magento2\Model\Service\ApiClient;
 use Magento\Backend\App\Action;
 use Magento\Backend\App\Action\Context;
@@ -11,16 +12,16 @@ use Magento\Backend\Model\UrlInterface;
 use Magento\Framework\Controller\Result\JsonFactory;
 use Psr\Log\LoggerInterface;
 
+/**
+ * AJAX: does the selected release hold staged changes for this entity? If so,
+ * return the edit URL that will load them (LoadChangesPlugin does the merge).
+ */
 class LoadChanges extends Action
 {
-    private const ENTITY_CONFIG = [
-        'cms_page' => ['editRoute' => 'cms/page/edit', 'idParam' => 'page_id'],
-        'cms_block' => ['editRoute' => 'cms/block/edit', 'idParam' => 'block_id'],
-    ];
-
     public function __construct(
         Context $context,
         private ApiClient $apiClient,
+        private AdapterPool $adapterPool,
         private JsonFactory $jsonFactory,
         private UrlInterface $url,
         private LoggerInterface $logger
@@ -34,32 +35,43 @@ class LoadChanges extends Action
         $request = $this->getRequest();
 
         $releaseId = (int) $request->getParam('release_id', 0);
-        $entityType = $request->getParam('entity_type', '');
-        $entityId = $request->getParam('entity_id', '');
+        $entityType = (string) $request->getParam('entity_type', '');
+        $entityId = (string) $request->getParam('entity_id', '');
+        $storeId = (int) $request->getParam('store_id', 0);
 
         if (!$releaseId || !$entityType || !$entityId) {
             return $result->setData(['success' => false, 'message' => 'Missing required parameters']);
         }
 
         try {
-            $changes = $this->apiClient->getPreviewChanges($releaseId, $entityType, $entityId);
+            $adapter = $this->adapterPool->get($entityType);
+            $groups = $this->apiClient->getPreviewChanges($releaseId, $entityType, $entityId);
 
-            if (empty($changes)) {
-                return $result->setData(['success' => false, 'message' => 'No staged changes found for this entity in the selected release.']);
+            $count = 0;
+            foreach ($groups as $group) {
+                $scope = (int) ($group['scope_store_id'] ?? 0);
+                if ($scope === 0 || $scope === $storeId) {
+                    $count += count($group['changes']);
+                }
             }
 
-            $entityConfig = self::ENTITY_CONFIG[$entityType] ?? null;
-            $redirectUrl = $entityConfig
-                ? $this->url->getUrl($entityConfig['editRoute'], [$entityConfig['idParam'] => $entityId, 'magedrop_load' => $releaseId])
-                : '';
+            if ($count === 0) {
+                return $result->setData([
+                    'success' => false,
+                    'message' => 'No staged changes found for this entity in the selected release.',
+                ]);
+            }
+
+            $params = $adapter->getEditParams($entityId, $storeId) + ['magedrop_load' => $releaseId];
 
             return $result->setData([
                 'success' => true,
-                'count' => count($changes),
-                'redirect_url' => $redirectUrl,
+                'count' => $count,
+                'redirect_url' => $this->url->getUrl($adapter->getEditRoute(), $params),
             ]);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $this->logger->error('Load changes error: ' . $e->getMessage());
+
             return $result->setData(['success' => false, 'message' => $e->getMessage()]);
         }
     }
