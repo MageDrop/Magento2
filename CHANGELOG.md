@@ -5,6 +5,21 @@ All notable changes to `MageDrop_Magento2` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.1] - 2026-10-02
+
+Fixes found testing deploys, rollbacks and revision restores of products and categories.
+
+### Fixed
+- **Deploy revisions recorded an empty gallery.** The revision captured after a MageDrop deploy, rollback or revision restore was taken from the trimmed model the apply saves (untouched sections such as the gallery are left out so Magento doesn't rewrite them), so it showed the gallery, and at store-view scope untouched attributes, as removed. It is now taken from the entity reloaded after the save. Nothing was ever removed in Magento; the MageDrop dashboard ignores empty values in deploy revisions recorded by 2.0.0, so restoring one can't remove images.
+- **Rolling back a store-view gallery change failed** with "The media gallery cannot inherit" when the store view had no gallery rows of its own. The previous value of a store-view gallery change now records which images had their own store-view row and which image roles the store view overrode, and a rollback recreates exactly that. "Use Default Value" for a store-view gallery is supported (drops the store view's own image rows and role overrides).
+- **A store-view gallery change pinned inherited image roles** (e.g. `swatch_image`) as store-view overrides. A role now only gets a store-view value when the store view already overrode it or the role's image actually changes.
+- **Removing images at the default scope deleted every store view's image rows**, so a rollback brought the images back without their store-view labels, positions and hidden flags. Store-view rows are kept while the image is unlinked and come back with it.
+- **Rolling back a category removal made from the product reset the product's position** in that category to 0. The previous value now carries the positions and a rollback restores them.
+
+### Added
+- `GET /V1/magedrop/entity/:type/:id` reports `scopable_fields` (fields that can hold a store-view value). The dashboard uses it so restoring a store-view revision never changes global values (global attributes, extension sections such as an option mapping) for every store view.
+- `Section/CapturesPreviousInterface` and `Section/AfterSaveInterface` for section handlers whose store-view state is more than "overridden or inherited", or that need to adjust rows after the entity save.
+
 ## [2.0.0] - 2026-10-01
 
 MageDrop 2.0 adds catalog content (categories and products), store-view scope and an

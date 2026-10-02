@@ -59,6 +59,12 @@ class SaveRevision implements ObserverInterface
                 $storeId = (int) $entity->getStoreId();
             }
 
+            // A MageDrop apply saves a trimmed model (untouched sections such as the gallery
+            // are unset so Magento leaves them alone): snapshot what was actually saved
+            if ($this->applyContext->isApplying()) {
+                $entity = $adapter->load((string) $entity->getId(), $storeId);
+            }
+
             $values = $adapter->current($entity, $storeId);
             if (!$values) {
                 return;

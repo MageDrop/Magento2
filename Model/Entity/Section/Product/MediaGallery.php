@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace MageDrop\Magento2\Model\Entity\Section\Product;
 
+use MageDrop\Magento2\Model\Entity\Section\AfterSaveInterface;
+use MageDrop\Magento2\Model\Entity\Section\CapturesPreviousInterface;
 use MageDrop\Magento2\Model\Entity\Section\SectionHandlerInterface;
 use MageDrop\Magento2\Model\Entity\Value;
 use MageDrop\Magento2\Model\Media\StagedMediaLog;
@@ -36,9 +38,19 @@ use Magento\Store\Model\Store;
  * rollback impossible); the normal product save then handles labels,
  * positions and roles at the requested store scope.
  */
-class MediaGallery implements SectionHandlerInterface
+class MediaGallery implements SectionHandlerInterface, CapturesPreviousInterface, AfterSaveInterface
 {
     public const FIELD = 'media_gallery';
+
+    /**
+     * Keys on entries of a captured store-view previous value (see previous()): whether
+     * the store view had its own row for the image, and which roles it overrode with it.
+     */
+    public const STORE_ROW = 'store_row';
+    public const STORE_ROLES = 'store_roles';
+
+    /** @var array<int, int[]> entity id => value ids whose store rows to drop after save */
+    private array $dropStoreRows = [];
     public const VIDEO_KEYS = ['video_url', 'video_title', 'video_description', 'video_provider', 'video_metadata'];
 
     /**
@@ -145,13 +157,88 @@ class MediaGallery implements SectionHandlerInterface
         if ($storeId === Store::DEFAULT_STORE_ID || !$entity->getId()) {
             return true;
         }
-        $connection = $this->galleryResource->getConnection();
-        $select = $connection->select()
-            ->from($this->galleryResource->getTable(GalleryResource::GALLERY_VALUE_TABLE), [new \Zend_Db_Expr('COUNT(*)')])
-            ->where($this->linkField() . ' = ?', $this->linkValue($entity))
-            ->where('store_id = ?', $storeId);
+        return $this->storeRowIds($entity, $storeId) !== [] || $this->overriddenRoles($entity, $storeId) !== [];
+    }
 
-        return (int) $connection->fetchOne($select) > 0;
+    /**
+     * At a store view, the gallery's previous state is the resolved list plus which
+     * images had their own store row and which roles the view overrode; "inherit" when
+     * it had neither. At the default scope the normal capture is exact.
+     */
+    public function previous(DataObject $entity, string $field, int $storeId): ?Value
+    {
+        if ($field !== self::FIELD || $storeId === Store::DEFAULT_STORE_ID || !$entity instanceof Product || !$entity->getId()) {
+            return null;
+        }
+        $rowIds = array_flip($this->storeRowIds($entity, $storeId));
+        $overridden = $this->overriddenRoles($entity, $storeId);
+        if (!$rowIds && !$overridden) {
+            return Value::inherit();
+        }
+
+        $entries = [];
+        foreach ($this->currentEntries($entity) as $entry) {
+            $entry[self::STORE_ROW] = $entry['value_id'] !== null && isset($rowIds[$entry['value_id']]);
+            $entry[self::STORE_ROLES] = array_values(array_intersect($entry['roles'], $overridden));
+            $entries[] = $entry;
+        }
+
+        return Value::json($entries);
+    }
+
+    public function hasStoreViewState(string $field): bool
+    {
+        return $field === self::FIELD; // per-image store rows and store-view roles
+    }
+
+    public function afterSave(DataObject $entity, int $storeId): void
+    {
+        $id = (int) $entity->getId();
+        $valueIds = $this->dropStoreRows[$id] ?? [];
+        unset($this->dropStoreRows[$id]);
+        if (!$valueIds || $storeId === Store::DEFAULT_STORE_ID) {
+            return;
+        }
+        // The core gallery handler writes a store row for every image at a store-view
+        // save; a restored "no own row" state must not keep them
+        $this->galleryResource->getConnection()->delete(
+            $this->galleryResource->getTable(GalleryResource::GALLERY_VALUE_TABLE),
+            [
+                $this->linkField() . ' = ?' => $this->linkValue($entity),
+                'store_id = ?' => $storeId,
+                'value_id IN (?)' => $valueIds,
+            ]
+        );
+    }
+
+    /**
+     * @return int[] value ids the store view has its own gallery row for
+     */
+    private function storeRowIds(DataObject $entity, int $storeId): array
+    {
+        $connection = $this->galleryResource->getConnection();
+
+        return array_map('intval', $connection->fetchCol(
+            $connection->select()
+                ->from($this->galleryResource->getTable(GalleryResource::GALLERY_VALUE_TABLE), ['value_id'])
+                ->where($this->linkField() . ' = ?', $this->linkValue($entity))
+                ->where('store_id = ?', $storeId)
+        ));
+    }
+
+    /**
+     * @return string[] image roles with a store-view value
+     */
+    private function overriddenRoles(DataObject $entity, int $storeId): array
+    {
+        if (!$entity instanceof Product) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            $this->roles(),
+            fn (string $role) => $this->scopeOverriddenValue->containsValue(ProductInterface::class, $entity, $role, $storeId)
+        ));
     }
 
     public function apply(DataObject $entity, array $values, int $storeId): void
@@ -161,7 +248,12 @@ class MediaGallery implements SectionHandlerInterface
         }
         $value = $values[self::FIELD];
         if ($value->isInherit()) {
-            throw new \InvalidArgumentException('The media gallery cannot inherit; stage the default-scope gallery instead.');
+            if ($storeId === Store::DEFAULT_STORE_ID) {
+                throw new \InvalidArgumentException('The media gallery cannot inherit at the default scope.');
+            }
+            $this->applyInherit($entity, $storeId);
+
+            return;
         }
 
         $staged = is_array($value->value) ? $value->value : [];
@@ -243,9 +335,107 @@ class MediaGallery implements SectionHandlerInterface
         }
 
         $entity->setData(self::FIELD, ['images' => array_values($images)]);
-        foreach ($this->roles() as $role) {
-            $entity->setData($role, $roles[$role] ?? 'no_selection');
+        if ($storeId === Store::DEFAULT_STORE_ID) {
+            foreach ($this->roles() as $role) {
+                $entity->setData($role, $roles[$role] ?? 'no_selection');
+            }
+        } else {
+            $this->applyStoreRoles($entity, $staged, $roles, $storeId);
+            if ($this->isCapturedPrevious($staged)) {
+                // Rollback of a store-view change: images that had no own store row get none
+                $this->dropStoreRows[(int) $entity->getId()] = array_keys(array_filter(
+                    $this->storeRowFlags($staged, $images),
+                    fn (bool $hadRow) => !$hadRow
+                ));
+            }
         }
+        $entity->unsetData('media_gallery_images');
+    }
+
+    /**
+     * Store-view roles: a value captured by previous() says exactly which roles the view
+     * overrode (others go back to inherited). Otherwise a role becomes a store-view
+     * override only when the view already had one or the image actually changes, so an
+     * inherited role is never pinned at the store view by an unrelated gallery change.
+     *
+     * @param array<string, string> $roles role => file from the staged list
+     */
+    private function applyStoreRoles(Product $entity, array $staged, array $roles, int $storeId): void
+    {
+        $captured = $this->isCapturedPrevious($staged);
+        $keep = [];
+        if ($captured) {
+            foreach ($staged as $entry) {
+                foreach ((array) ($entry[self::STORE_ROLES] ?? []) as $role) {
+                    $keep[$role] = true;
+                }
+            }
+        }
+
+        foreach ($this->roles() as $role) {
+            $target = $roles[$role] ?? 'no_selection';
+            $overridden = $this->scopeOverriddenValue->containsValue(ProductInterface::class, $entity, $role, $storeId);
+
+            if ($captured) {
+                // null on a store-loaded model removes the store row (back to the default)
+                $entity->setData($role, isset($keep[$role]) ? $target : null);
+                continue;
+            }
+            if (!$overridden && (string) $entity->getData($role) === $target) {
+                $entity->setData($role, false); // unchanged and inherited: no store row
+                continue;
+            }
+            $entity->setData($role, $target);
+        }
+    }
+
+    /** A gallery value produced by previous() (rollback), rather than a staged one. */
+    private function isCapturedPrevious(array $staged): bool
+    {
+        foreach ($staged as $entry) {
+            if (is_array($entry) && array_key_exists(self::STORE_ROW, $entry)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<int, array> $images value_id => image as applied
+     * @return array<int, bool> value_id => had its own store row
+     */
+    private function storeRowFlags(array $staged, array $images): array
+    {
+        $byFile = [];
+        foreach ($images as $valueId => $image) {
+            $byFile[$image['file']] = $valueId;
+        }
+        $flags = [];
+        foreach ($staged as $entry) {
+            if (is_array($entry) && isset($byFile[(string) ($entry['file'] ?? '')])) {
+                $flags[$byFile[(string) $entry['file']]] = !empty($entry[self::STORE_ROW]);
+            }
+        }
+
+        return $flags;
+    }
+
+    /**
+     * "Use Default Value" for the whole gallery at a store view: drop the view's own
+     * image rows and role overrides; the images themselves are global and untouched.
+     */
+    private function applyInherit(Product $entity, int $storeId): void
+    {
+        $this->galleryResource->getConnection()->delete(
+            $this->galleryResource->getTable(GalleryResource::GALLERY_VALUE_TABLE),
+            [$this->linkField() . ' = ?' => $this->linkValue($entity), 'store_id = ?' => $storeId]
+        );
+        foreach ($this->roles() as $role) {
+            $entity->setData($role, null);
+        }
+        // Nothing for the core gallery handlers to write at this scope
+        $entity->unsetData(self::FIELD);
         $entity->unsetData('media_gallery_images');
     }
 
@@ -527,7 +717,12 @@ class MediaGallery implements SectionHandlerInterface
     {
         $connection = $this->galleryResource->getConnection();
         $where = ['value_id = ?' => $valueId, $this->linkField() . ' = ?' => $linkValue];
-        $connection->delete($this->galleryResource->getTable(GalleryResource::GALLERY_VALUE_TABLE), $where);
+        // Only the default row: store-view rows (own label/position/hidden) stay, unused
+        // while unlinked, so re-linking on rollback restores them
+        $connection->delete(
+            $this->galleryResource->getTable(GalleryResource::GALLERY_VALUE_TABLE),
+            $where + ['store_id = ?' => Store::DEFAULT_STORE_ID]
+        );
         $connection->delete($this->galleryResource->getTable(GalleryResource::GALLERY_VALUE_TO_ENTITY_TABLE), $where);
     }
 

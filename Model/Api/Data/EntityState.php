@@ -18,7 +18,8 @@ class EntityState implements EntityStateInterface
         private int $storeId = 0,
         private ?string $title = null,
         private array $fields = [],
-        private array $overriddenFields = []
+        private array $overriddenFields = [],
+        private array $scopableFields = []
     ) {
     }
 
@@ -50,5 +51,10 @@ class EntityState implements EntityStateInterface
     public function getOverriddenFields(): array
     {
         return $this->overriddenFields;
+    }
+
+    public function getScopableFields(): array
+    {
+        return $this->scopableFields;
     }
 }
