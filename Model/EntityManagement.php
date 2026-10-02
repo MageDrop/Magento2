@@ -11,6 +11,7 @@ use MageDrop\Magento2\Api\EntityManagementInterface;
 use MageDrop\Magento2\Model\Api\Data\ApplyResult;
 use MageDrop\Magento2\Model\Api\Data\Change;
 use MageDrop\Magento2\Model\Api\Data\EntityState;
+use MageDrop\Magento2\Model\Entity\Section\CapturesPreviousInterface;
 use MageDrop\Magento2\Model\Entity\AdapterPool;
 use MageDrop\Magento2\Model\Entity\Value;
 use Magento\Framework\Exception\LocalizedException;
@@ -37,17 +38,19 @@ class EntityManagement implements EntityManagementInterface
 
         $fields = [];
         $overridden = [];
+        $scopable = [];
         foreach ($adapter->current($entity, $storeId) as $field => $value) {
             $fields[] = Change::fromValue($field, $value);
-            if ($storeId !== Store::DEFAULT_STORE_ID
-                && $adapter->isScopable($entity, $field)
-                && $adapter->isOverridden($entity, $field, $storeId)
-            ) {
+            if ($storeId === Store::DEFAULT_STORE_ID || !$this->isStoreScoped($adapter, $entity, $field)) {
+                continue;
+            }
+            $scopable[] = $field;
+            if ($adapter->isOverridden($entity, $field, $storeId)) {
                 $overridden[] = $field;
             }
         }
 
-        return new EntityState($type, $id, $storeId, $adapter->getTitle($entity), $fields, $overridden);
+        return new EntityState($type, $id, $storeId, $adapter->getTitle($entity), $fields, $overridden, $scopable);
     }
 
     public function apply(string $type, string $id, int $storeId, array $changes): ApplyResultInterface
@@ -79,6 +82,11 @@ class EntityManagement implements EntityManagementInterface
         $current = $adapter->current($entity, $storeId, array_keys($values));
         $previous = [];
         foreach (array_keys($values) as $field) {
+            $own = method_exists($adapter, 'previous') ? $adapter->previous($entity, $field, $storeId) : null;
+            if ($own !== null) {
+                $previous[] = Change::fromValue($field, $own);
+                continue;
+            }
             if ($storeId !== Store::DEFAULT_STORE_ID && !$adapter->isOverridden($entity, $field, $storeId)) {
                 $previous[] = Change::fromValue($field, Value::inherit());
                 continue;
@@ -105,6 +113,26 @@ class EntityManagement implements EntityManagementInterface
         }
 
         return new ApplyResult($adapter->getTitle($entity), $previous, array_keys($values));
+    }
+
+    /**
+     * Has a store-view value: scopable attributes, plus sections whose store-view state
+     * is their own (the gallery: per-image store rows and roles) even though the field
+     * itself is not a scopable attribute.
+     */
+    private function isStoreScoped($adapter, $entity, string $field): bool
+    {
+        if ($adapter->isScopable($entity, $field)) {
+            return true;
+        }
+        $sections = method_exists($adapter, 'getSections') ? $adapter->getSections() : [];
+        foreach ($sections as $section) {
+            if ($section instanceof CapturesPreviousInterface && $section->handles($field, $entity) && $section->hasStoreViewState($field)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function capabilities(): array

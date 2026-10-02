@@ -175,6 +175,8 @@ class Product extends AbstractAdapter
             $this->validateApplied($entity, $appliedFields);
 
             $entity->save();
+
+            $this->afterSave($entity, $storeId);
         });
     }
 

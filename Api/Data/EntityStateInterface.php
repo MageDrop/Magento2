@@ -37,4 +37,12 @@ interface EntityStateInterface
      * @return string[]
      */
     public function getOverriddenFields(): array;
+
+    /**
+     * Fields that can hold a store-view value at all (empty at the default scope).
+     * Anything else is global: changing it at a store view changes every store view.
+     *
+     * @return string[]
+     */
+    public function getScopableFields(): array;
 }

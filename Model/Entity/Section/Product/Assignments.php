@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace MageDrop\Magento2\Model\Entity\Section\Product;
 
+use MageDrop\Magento2\Model\Entity\Section\AfterSaveInterface;
+use MageDrop\Magento2\Model\Entity\Section\CapturesPreviousInterface;
 use MageDrop\Magento2\Model\Entity\Section\SectionHandlerInterface;
 use MageDrop\Magento2\Model\Entity\Value;
 use Magento\Catalog\Model\Product;
@@ -11,10 +13,66 @@ use Magento\Framework\DataObject;
 
 /**
  * Category and website assignments of a product (global scope).
+ *
+ * category_ids is staged as a list of ids. Removing a category from the product drops
+ * the product's position in that category, so the previous value captured for a
+ * rollback is a list of {category_id, position} records and applying it restores the
+ * positions too.
  */
-class Assignments implements SectionHandlerInterface
+class Assignments implements SectionHandlerInterface, CapturesPreviousInterface, AfterSaveInterface
 {
     public const FIELDS = ['category_ids', 'website_ids'];
+
+    /** @var array<int, array<int, int>> product id => category id => position to restore */
+    private array $positions = [];
+
+    public function previous(DataObject $entity, string $field, int $storeId): ?Value
+    {
+        if ($field !== 'category_ids' || !$entity instanceof Product || !$entity->getId()) {
+            return null;
+        }
+        $records = [];
+        foreach ($this->categoryPositions($entity) as $categoryId => $position) {
+            $records[] = ['category_id' => $categoryId, 'position' => $position];
+        }
+
+        return Value::json($records);
+    }
+
+    public function hasStoreViewState(string $field): bool
+    {
+        return false; // assignments are global
+    }
+
+    public function afterSave(DataObject $entity, int $storeId): void
+    {
+        $id = (int) $entity->getId();
+        $positions = $this->positions[$id] ?? [];
+        unset($this->positions[$id]);
+        if (!$positions || !$entity instanceof Product) {
+            return;
+        }
+        $connection = $entity->getResource()->getConnection();
+        $table = $entity->getResource()->getTable('catalog_category_product');
+        foreach ($positions as $categoryId => $position) {
+            $connection->update($table, ['position' => $position], ['product_id = ?' => $id, 'category_id = ?' => $categoryId]);
+        }
+    }
+
+    /**
+     * @return array<int, int> category id => position of this product in it
+     */
+    private function categoryPositions(Product $product): array
+    {
+        $connection = $product->getResource()->getConnection();
+
+        return array_map('intval', $connection->fetchPairs(
+            $connection->select()
+                ->from($product->getResource()->getTable('catalog_category_product'), ['category_id', 'position'])
+                ->where('product_id = ?', (int) $product->getId())
+                ->order('category_id')
+        ));
+    }
 
     public function extract(array $post, DataObject $entity, int $storeId): array
     {
@@ -79,8 +137,19 @@ class Assignments implements SectionHandlerInterface
             if ($value->isInherit()) {
                 throw new \InvalidArgumentException(sprintf('%s cannot inherit.', $field));
             }
-            $ids = $this->normalise(is_array($value->value) ? $value->value : []);
+            $raw = is_array($value->value) ? $value->value : [];
+            $ids = $this->normalise($raw);
             if ($field === 'category_ids') {
+                // A captured previous value (rollback) also carries the positions
+                $positions = [];
+                foreach ($raw as $record) {
+                    if (is_array($record) && isset($record['category_id'], $record['position'])) {
+                        $positions[(int) $record['category_id']] = (int) $record['position'];
+                    }
+                }
+                if ($positions) {
+                    $this->positions[(int) $entity->getId()] = $positions;
+                }
                 // Category\Link\SaveHandler merges the loaded category_links extension
                 // attribute with the model ids, which would silently keep removed categories.
                 $extension = $entity->getExtensionAttributes();
@@ -118,7 +187,7 @@ class Assignments implements SectionHandlerInterface
     {
         $out = [];
         foreach ($ids as $id) {
-            $id = (int) $id;
+            $id = (int) (is_array($id) ? ($id['category_id'] ?? 0) : $id);
             if ($id > 0) {
                 $out[$id] = $id;
             }

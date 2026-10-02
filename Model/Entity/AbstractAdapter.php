@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace MageDrop\Magento2\Model\Entity;
 
+use MageDrop\Magento2\Model\Entity\Section\AfterSaveInterface;
+use MageDrop\Magento2\Model\Entity\Section\CapturesPreviousInterface;
 use MageDrop\Magento2\Model\Entity\Section\DescribesValuesInterface;
 use MageDrop\Magento2\Model\Entity\Section\SectionHandlerInterface;
 use Magento\Framework\App\RequestInterface;
@@ -149,6 +151,28 @@ abstract class AbstractAdapter implements AdapterInterface
         $section = $this->sectionFor($field, $entity);
 
         return $section ? $section->isOverridden($entity, $field, $storeId) : true;
+    }
+
+    /**
+     * Previous value a section captures itself (see CapturesPreviousInterface), or null.
+     */
+    public function previous(DataObject $entity, string $field, int $storeId): ?Value
+    {
+        $section = $this->sectionFor($field, $entity);
+
+        return $section instanceof CapturesPreviousInterface ? $section->previous($entity, $field, $storeId) : null;
+    }
+
+    /**
+     * Lets sections fix up rows the entity save wrote (see AfterSaveInterface).
+     */
+    public function afterSave(DataObject $entity, int $storeId): void
+    {
+        foreach ($this->sections as $section) {
+            if ($section instanceof AfterSaveInterface) {
+                $section->afterSave($entity, $storeId);
+            }
+        }
     }
 
     public function apply(DataObject $entity, array $values, int $storeId): void
