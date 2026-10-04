@@ -39,6 +39,12 @@ class ValueTest extends TestCase
         $this->assertTrue(Value::inherit()->equals(Value::inherit()));
     }
 
+    public function testLineEndingsAreNotAChange(): void
+    {
+        $this->assertTrue(Value::text("<ul>\r\n<li>One</li>\r\n</ul>")->equals(Value::text("<ul>\n<li>One</li>\n</ul>")));
+        $this->assertFalse(Value::text("One\nTwo")->equals(Value::text("One Two")));
+    }
+
     public function testNumericStringsCompareByValue(): void
     {
         $this->assertTrue(Value::text('2025.000000')->equals(Value::text('2025.00')));

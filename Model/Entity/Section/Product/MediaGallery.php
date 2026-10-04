@@ -80,8 +80,13 @@ class MediaGallery implements SectionHandlerInterface, CapturesPreviousInterface
         }
 
         $roleFiles = [];
+        $useDefault = is_array($post['use_default'] ?? null) ? $post['use_default'] : [];
         foreach ($this->roles() as $role) {
-            $value = $post[$role] ?? null;
+            // "Use Default Value" ticked at a store view: Magento's initialiser blanks the role,
+            // but the view still shows (and keeps) the default's image for it
+            $value = $storeId !== Store::DEFAULT_STORE_ID && !empty($useDefault[$role])
+                ? $entity->getData($role)
+                : ($post[$role] ?? null);
             if (is_string($value) && $value !== '' && $value !== 'no_selection') {
                 $roleFiles[$role] = $value;
             }

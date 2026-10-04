@@ -65,6 +65,11 @@ class Attributes implements SectionHandlerInterface
                 continue;
             }
 
+            $attribute = $this->eav ? $this->getAttribute($entity, (string) $field) : null;
+            if ($attribute && $this->isMultiselect($attribute)) {
+                $raw = $this->joinMultiselect($raw);
+            }
+
             if (!is_scalar($raw) && $raw !== null) {
                 continue;
             }
@@ -107,6 +112,10 @@ class Attributes implements SectionHandlerInterface
                 continue;
             }
             $raw = $entity->getData($field);
+            $attribute = $this->eav ? $this->getAttribute($entity, $field) : null;
+            if ($attribute && $this->isMultiselect($attribute)) {
+                $raw = $this->joinMultiselect($raw);
+            }
             if (!is_scalar($raw) && $raw !== null) {
                 continue;
             }
@@ -251,12 +260,84 @@ class Attributes implements SectionHandlerInterface
     private function isAttributeDefault(DataObject $entity, string $field, Value $value): bool
     {
         $attribute = $this->getAttribute($entity, $field);
-        $default = $attribute?->getDefaultValue();
-        if ($default === null || $default === '') {
+        if ($attribute === null) {
             return false;
         }
+        foreach ($this->unsetFormValues($attribute) as $shown) {
+            if (Value::text($shown)->equals($value)) {
+                return true;
+            }
+        }
 
-        return Value::text($default)->equals($value);
+        return false;
+    }
+
+    /**
+     * What the admin form can show, and post back untouched, for an attribute with no value.
+     * Magento's product form only fills in the attribute default for new products
+     * (Ui\DataProvider\Product\Form\Modifier\Eav); on existing ones a Yes/No shows "No" and a
+     * dropdown without an empty choice shows its first option (Tax Class "None", Display
+     * Product Options In "Product Info Column"). Magento's own Save would write those values
+     * (AbstractEntity::_collectSaveData inserts any non-empty value); staging leaves them out.
+     *
+     * @return string[]
+     */
+    private function unsetFormValues(AbstractAttribute $attribute): array
+    {
+        $values = [];
+        $default = $attribute->getDefaultValue();
+        if ($default !== null && $default !== '') {
+            $values[] = (string) $default;
+        }
+        if ($this->isYesNo($attribute)) {
+            $values[] = '0';
+        } elseif ($attribute->getFrontendInput() === 'select' && $attribute->usesSource()) {
+            try {
+                $first = $attribute->getSource()->getAllOptions()[0]['value'] ?? null;
+            } catch (\Throwable $e) {
+                $first = null;
+            }
+            if (is_scalar($first)) {
+                $values[] = (string) $first;
+            }
+        }
+
+        return $values;
+    }
+
+    private function isMultiselect(AbstractAttribute $attribute): bool
+    {
+        $backend = (string) $attribute->getBackendModel();
+
+        return $attribute->getFrontendInput() === 'multiselect'
+            || ($backend !== '' && is_a($backend, \Magento\Eav\Model\Entity\Attribute\Backend\ArrayBackend::class, true));
+    }
+
+    /**
+     * Multiselect values the way Magento stores them (ArrayBackend::beforeSave: comma-joined,
+     * empties dropped), with the ids sorted so picking the same options in another order
+     * isn't a change. The admin form posts an array, or "" when nothing is selected.
+     */
+    private function joinMultiselect(mixed $raw): mixed
+    {
+        if (is_string($raw)) {
+            $raw = $raw === '' ? [] : explode(',', $raw);
+        }
+        if (!is_array($raw)) {
+            return $raw;
+        }
+        $ids = array_values(array_filter(array_map('strval', $raw), fn ($id) => $id === '0' || trim($id) !== ''));
+        sort($ids, SORT_NATURAL);
+
+        return implode(',', $ids);
+    }
+
+    private function isYesNo(AbstractAttribute $attribute): bool
+    {
+        $source = (string) $attribute->getSourceModel();
+
+        return $attribute->getFrontendInput() === 'boolean'
+            || ($source !== '' && is_a($source, \Magento\Eav\Model\Entity\Attribute\Source\Boolean::class, true));
     }
 
     private function isGlobal(AbstractAttribute $attribute): bool

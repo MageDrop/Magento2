@@ -41,6 +41,14 @@ class Start extends Action implements CsrfAwareActionInterface
 
                 $this->session->setData('magedrop_preview_release_id', $releaseId);
                 $this->session->setData('magedrop_preview_vary', $varyValue);
+                // Shown on the preview bar (SaaS sends these from 2.0.2)
+                $this->session->setData('magedrop_preview_info', [
+                    'name' => isset($result['release_name']) ? (string) $result['release_name'] : null,
+                    'quick' => !empty($result['is_quick_preview']),
+                    'changes' => isset($result['change_count']) ? (int) $result['change_count'] : null,
+                    'dashboard_url' => isset($result['dashboard_url']) && filter_var($result['dashboard_url'], FILTER_VALIDATE_URL)
+                        ? (string) $result['dashboard_url'] : null,
+                ]);
                 $this->httpContext->setValue(
                     PreviewBar::CONTEXT_PREVIEW,
                     $varyValue,

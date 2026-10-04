@@ -3,7 +3,7 @@
     "description": "MageDrop companion module for Magento 2 — stage, preview, and deploy CMS and catalog content changes as coordinated releases",
     "type": "magento2-module",
     "license": "proprietary",
-    "version": "2.0.1",
+    "version": "2.0.2",
     "require": {
         "php": "^8.2",
         "magento/framework": "^103.0",

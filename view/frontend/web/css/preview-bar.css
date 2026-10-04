@@ -1,59 +1,181 @@
+/* MageDrop storefront preview bar. Plain CSS, scoped to its ids, so it works on Luma and Hyvä. */
+#magedrop-preview-bar,
+#magedrop-preview-pill {
+    font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    box-sizing: border-box;
+}
+
 #magedrop-preview-bar {
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
-    z-index: 999999;
-    background: #0f172a;
-    color: #ffffff;
-    padding: 10px 20px;
+    z-index: 2147483000;
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    font-size: 14px;
-    line-height: 1.4;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-}
-
-#magedrop-preview-bar .magedrop-preview-bar__logo {
-    height: 16px;
-    width: auto;
-    margin-right: 12px;
-    flex-shrink: 0;
-}
-
-#magedrop-preview-bar .magedrop-preview-bar__label {
-    font-weight: 700;
-}
-
-#magedrop-preview-bar .magedrop-preview-bar__message {
-    opacity: 0.6;
-    margin-left: 10px;
-}
-
-#magedrop-preview-bar .magedrop-preview-bar__exit {
-    background: #ffffff;
-    color: #0f172a;
-    padding: 5px 15px;
-    border-radius: 999px;
-    text-decoration: none;
-    font-weight: 600;
+    justify-content: space-between;
+    gap: 16px;
+    min-height: 48px;
+    padding: 8px 16px;
+    background: #030712;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    color: #f9fafb;
     font-size: 13px;
-    border: none;
+    line-height: 1.4;
+}
+
+#magedrop-preview-bar * { box-sizing: border-box; }
+
+#magedrop-preview-bar .mdpb__left,
+#magedrop-preview-bar .mdpb__right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+#magedrop-preview-bar .mdpb__right { flex-shrink: 0; gap: 8px; }
+
+#magedrop-preview-bar .mdpb__logo { height: 11px; width: auto; flex-shrink: 0; opacity: 0.9; }
+
+#magedrop-preview-bar .mdpb__badge,
+#magedrop-preview-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+#magedrop-preview-bar .mdpb__badge {
+    flex-shrink: 0;
+    padding: 2px 8px;
+    border-radius: 6px;
+    background: rgba(245, 158, 11, 0.12);
+    box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.3);
+    color: #fcd34d;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+#magedrop-preview-bar .mdpb__dot,
+#magedrop-preview-pill .mdpb__dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: #f59e0b;
+    flex-shrink: 0;
+    animation: mdpb-pulse 2s ease-in-out infinite;
+}
+
+#magedrop-preview-bar .mdpb__title {
+    font-weight: 600;
+    color: #ffffff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+#magedrop-preview-bar .mdpb__meta {
+    color: #9ca3af;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+#magedrop-preview-bar .mdpb__link {
+    color: #d1d5db;
+    text-decoration: none;
+    padding: 6px 8px;
+    border-radius: 6px;
+    white-space: nowrap;
+}
+
+#magedrop-preview-bar .mdpb__link:hover { color: #ffffff; background: rgba(255, 255, 255, 0.06); }
+
+#magedrop-preview-bar .mdpb__form { margin: 0; padding: 0; display: inline-flex; }
+
+#magedrop-preview-bar .mdpb__exit,
+#magedrop-preview-bar .mdpb__hide {
+    font: inherit;
     cursor: pointer;
-    display: inline-block;
-}
-
-#magedrop-preview-bar .magedrop-preview-bar__exit:hover {
-    background: #e2e8f0;
-}
-
-#magedrop-preview-bar .magedrop-preview-bar__form {
+    border: 0;
     margin: 0;
-    padding: 0;
+    border-radius: 7px;
+    line-height: 1;
 }
 
-#magedrop-preview-bar-spacer {
-    height: 44px;
+#magedrop-preview-bar .mdpb__exit {
+    padding: 8px 12px;
+    background: #ffffff;
+    color: #111827;
+    font-weight: 600;
+}
+
+#magedrop-preview-bar .mdpb__exit:hover { background: #e5e7eb; }
+
+#magedrop-preview-bar .mdpb__hide {
+    width: 30px;
+    height: 30px;
+    background: transparent;
+    color: #9ca3af;
+    font-size: 16px;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+#magedrop-preview-bar .mdpb__hide:hover { color: #ffffff; background: rgba(255, 255, 255, 0.06); }
+
+#magedrop-preview-bar .mdpb__exit:focus-visible,
+#magedrop-preview-bar .mdpb__hide:focus-visible,
+#magedrop-preview-bar .mdpb__link:focus-visible,
+#magedrop-preview-pill:focus-visible {
+    outline: 2px solid #818cf8;
+    outline-offset: 2px;
+}
+
+#magedrop-preview-bar-spacer { height: 48px; }
+
+/* Hidden: the bar collapses to a pill in the bottom-left corner */
+#magedrop-preview-pill {
+    position: fixed;
+    left: 16px;
+    bottom: 16px;
+    z-index: 2147483000;
+    max-width: calc(100vw - 32px);
+    padding: 8px 12px;
+    border: 0;
+    border-radius: 999px;
+    background: #030712;
+    color: #f9fafb;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25), inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+#magedrop-preview-pill[hidden] { display: none; }
+
+.mdpb-hidden #magedrop-preview-bar,
+.mdpb-hidden #magedrop-preview-bar-spacer { display: none; }
+
+@keyframes mdpb-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #magedrop-preview-bar .mdpb__dot,
+    #magedrop-preview-pill .mdpb__dot { animation: none; }
+}
+
+@media (max-width: 768px) {
+    #magedrop-preview-bar .mdpb__meta,
+    #magedrop-preview-bar .mdpb__link { display: none; }
+}
+
+@media (max-width: 420px) {
+    #magedrop-preview-bar { padding: 8px 12px; gap: 8px; }
+    #magedrop-preview-bar .mdpb__logo { display: none; }
 }

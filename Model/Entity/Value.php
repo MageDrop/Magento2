@@ -101,8 +101,9 @@ final class Value
      */
     private static function sameText(string $a, string $b): bool
     {
-        $a = trim($a);
-        $b = trim($b);
+        // Browsers post textarea line breaks as CRLF; Magento stores whatever it was given
+        $a = trim(str_replace("\r\n", "\n", $a));
+        $b = trim(str_replace("\r\n", "\n", $b));
         if ($a === $b) {
             return true;
         }

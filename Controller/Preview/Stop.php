@@ -29,10 +29,15 @@ class Stop extends Action implements CsrfAwareActionInterface
     {
         $this->session->unsetData('magedrop_preview_release_id');
         $this->session->unsetData('magedrop_preview_vary');
+        $this->session->unsetData('magedrop_preview_info');
         $this->httpContext->setValue(PreviewBar::CONTEXT_PREVIEW, false, false);
 
+        // Stay on the page being previewed (now showing the live content). Magento's
+        // redirect helper only returns the referer when it is one of this store's URLs.
+        $back = (string) $this->_redirect->getRefererUrl();
+
         return $this->resultRedirectFactory->create()
-            ->setUrl($this->storeManager->getStore()->getBaseUrl());
+            ->setUrl($back !== '' ? $back : $this->storeManager->getStore()->getBaseUrl());
     }
 
     public function createCsrfValidationException(RequestInterface $request): ?InvalidRequestException

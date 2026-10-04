@@ -1,21 +1,59 @@
 <?php
 /** @var \MageDrop\Magento2\Block\PreviewBar $block */
+/* Hyvä: same markup as the Luma template; plain CSS and vanilla JS, no RequireJS. */
+/** @var \Magento\Framework\Escaper $escaper */
 if (!$block->isPreviewActive()) {
     return;
 }
-$stopUrl = $block->getUrl('magedrop/preview/stop');
+$info = $block->getPreviewInfo();
+$title = $info['name'] ?? ($info['quick'] ? __('Quick preview') : __('Release preview'));
+$changes = $info['changes'];
 ?>
-<div id="magedrop-preview-bar">
-    <div style="display: flex; align-items: center;">
-        <img src="<?= $block->escapeUrl($block->getViewFileUrl('MageDrop_Magento2::images/logo-icon-white.svg')) ?>" alt="MageDrop" class="magedrop-preview-bar__logo">
-        <span class="magedrop-preview-bar__label"><?= $block->escapeHtml(__('Preview Mode')) ?></span>
-        <span class="magedrop-preview-bar__message"><?= $block->escapeHtml(__('Changes are not live — only you can see this.')) ?></span>
+<div id="magedrop-preview-bar" role="region" aria-label="<?= $escaper->escapeHtmlAttr(__('MageDrop preview')) ?>">
+    <div class="mdpb__left">
+        <img src="<?= $escaper->escapeUrl($block->getViewFileUrl('MageDrop_Magento2::images/logo-icon-white.svg')) ?>" alt="MageDrop" class="mdpb__logo" width="20" height="11">
+        <span class="mdpb__badge"><span class="mdpb__dot"></span><?= $escaper->escapeHtml(__('Preview')) ?></span>
+        <span class="mdpb__title"><?= $escaper->escapeHtml($title) ?></span>
+        <span class="mdpb__meta">
+            <?php if ($changes !== null): ?>
+                <?= $escaper->escapeHtml(__($changes === 1 ? '%1 change' : '%1 changes', $changes)) ?> &middot;
+            <?php endif; ?>
+            <?= $escaper->escapeHtml(__('Only you can see this. Shoppers see the live store.')) ?>
+        </span>
     </div>
-    <form action="<?= $block->escapeUrl($stopUrl) ?>" method="post" class="magedrop-preview-bar__form">
-        <?= $block->getBlockHtml('formkey') ?>
-        <button type="submit" class="magedrop-preview-bar__exit">
-            <?= $block->escapeHtml(__('Exit Preview')) ?>
-        </button>
-    </form>
+    <div class="mdpb__right">
+        <?php if (!empty($info['dashboard_url'])): ?>
+            <a class="mdpb__link" href="<?= $escaper->escapeUrl($info['dashboard_url']) ?>" target="_blank" rel="noopener"><?= $escaper->escapeHtml(__('Open in MageDrop')) ?> &#8599;</a>
+        <?php endif; ?>
+        <button type="button" class="mdpb__hide" data-mdpb-toggle title="<?= $escaper->escapeHtmlAttr(__('Hide the bar')) ?>" aria-label="<?= $escaper->escapeHtmlAttr(__('Hide the bar')) ?>">&#8211;</button>
+        <form action="<?= $escaper->escapeUrl($block->getUrl('magedrop/preview/stop')) ?>" method="post" class="mdpb__form">
+            <?= $block->getBlockHtml('formkey') ?>
+            <button type="submit" class="mdpb__exit"><?= $escaper->escapeHtml(__('Exit preview')) ?></button>
+        </form>
+    </div>
 </div>
 <div id="magedrop-preview-bar-spacer"></div>
+<button type="button" id="magedrop-preview-pill" data-mdpb-toggle hidden>
+    <span class="mdpb__dot"></span><?= $escaper->escapeHtml(__('Preview: %1', $title)) ?>
+</button>
+<script>
+(function () {
+    var key = 'magedrop_preview_bar_hidden';
+    var root = document.documentElement;
+    function apply(hidden) {
+        root.classList.toggle('mdpb-hidden', hidden);
+        var pill = document.getElementById('magedrop-preview-pill');
+        if (pill) { pill.hidden = !hidden; }
+    }
+    var hidden = false;
+    try { hidden = window.sessionStorage.getItem(key) === '1'; } catch (e) {}
+    apply(hidden);
+    document.querySelectorAll('[data-mdpb-toggle]').forEach(function (el) {
+        el.addEventListener('click', function () {
+            hidden = !hidden;
+            try { window.sessionStorage.setItem(key, hidden ? '1' : '0'); } catch (e) {}
+            apply(hidden);
+        });
+    });
+})();
+</script>

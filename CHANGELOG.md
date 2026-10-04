@@ -5,6 +5,21 @@ All notable changes to `MageDrop_Magento2` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.2] - 2026-10-04
+
+### Changed
+- **Redesigned storefront preview bar** (Luma and Hyvä share the same markup): shows the release name, how many changes it has and a link back to the release in MageDrop, and can be hidden to a small corner pill while you check the page (remembered for the browser tab).
+- **Exit preview returns to the page you were on**, now showing the live content, instead of the home page.
+- **The preview bar's CSS only loads while previewing.** It was added to the head of every storefront page; shoppers now get no MageDrop assets at all.
+
+### Fixed
+- **Multiselect attributes can be staged.** The admin form posts them as arrays, which the attribute handler skipped, so changing one was never staged (and never deployed). They are now joined the way Magento's `ArrayBackend` stores them, and picking the same options in a different order isn't a change.
+- **Store-view gallery roles.** On a store view where Base/Small/Thumbnail use the default, Magento's initialiser blanks those roles; staging read that as "no image has this role" and staged the roles as removed even when nothing was touched (deploying it would have taken the main image off that store view). Inherited roles now resolve to the image the view actually shows.
+- **Staging no longer picks up changes nobody made**, matching what the admin form shows rather than what Magento's Save would write: Magento inserts any non-empty posted value (`AbstractEntity::_collectSaveData`), so an untouched form fills unset fields in. For attributes with no value, the values the form displays are now treated as unchanged: "No" for Yes/No attributes, and the first option of dropdowns without an empty choice (e.g. Tax Class "None", Display Product Options In "Product Info Column"). Text that only differs in line endings (browsers post textareas with CRLF) is no longer a change either.
+
+### Tested
+- Every attribute input type (text, textarea, dropdown, multiselect, Yes/No, date, price, decimal, integer) with no row, a NULL row and a value, at the default scope and a store view: an untouched Save & Stage stages nothing; edits (including clearing values and setting `0`) stage exactly the edited fields; deploy and rollback through the apply endpoint restore the original rows. Categories at both scopes stage nothing when untouched.
+
 ## [2.0.1] - 2026-10-02
 
 Fixes found testing deploys, rollbacks and revision restores of products and categories.
