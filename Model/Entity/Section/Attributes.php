@@ -210,8 +210,26 @@ class Attributes implements SectionHandlerInterface
             if ($value->isInherit()) {
                 continue;
             }
-            $entity->setData($field, $value->forModel());
+            $entity->setData($field, $this->forOverlay($entity, (string) $field, $value->forModel()));
         }
+    }
+
+    /**
+     * A removed value travels as "" (text envelopes never hold null). On a number or date
+     * attribute "" is not "no value" to Magento: an empty special_price makes the final
+     * price 0. Preview it as no value.
+     */
+    private function forOverlay(DataObject $entity, string $field, mixed $value): mixed
+    {
+        if ($value !== '') {
+            return $value;
+        }
+        $attribute = $this->getAttribute($entity, $field);
+        if ($attribute && in_array($attribute->getBackendType(), ['decimal', 'int', 'datetime'], true)) {
+            return null;
+        }
+
+        return $value;
     }
 
     public function toFormData(array $data, array $values): array

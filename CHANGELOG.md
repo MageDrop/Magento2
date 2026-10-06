@@ -5,6 +5,11 @@ All notable changes to `MageDrop_Magento2` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.4] - 2026-10-06
+
+### Fixed
+- **Previewing a removed price or date no longer shows 0.** A cleared value is staged as an empty string, and the storefront preview set it on the product as-is; Magento reads an empty special price as 0, so previewing "remove the special price" showed the product at 0.00. Cleared number and date attributes (decimal, int, datetime) are now previewed as no value. Deploys were not affected: they already saved no special price.
+
 ## [2.0.3] - 2026-10-06
 
 ### Fixed
