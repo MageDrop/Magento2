@@ -58,6 +58,11 @@ class Category extends AbstractAdapter
         return $id > 0 ? (string) $id : null;
     }
 
+    protected function formProbe(): DataObject
+    {
+        return $this->categoryFactory->create();
+    }
+
     public function load(string $entityId, int $storeId): DataObject
     {
         $category = $this->categoryFactory->create();

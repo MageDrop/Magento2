@@ -12,6 +12,16 @@ define([
 
         if (!releaseId) return;
 
+        var message = $t('%1 field(s) loaded from "%2". Review the changes and save when ready.')
+            .replace('%1', changeCount)
+            .replace('%2', releaseName);
+
+        if (config.quick) {
+            message = changeCount > 0
+                ? $t('Your Quick Preview edit is back in the form. To keep it, choose MageDrop › Save & Stage.')
+                : $t('That Quick Preview is no longer available, so nothing was loaded into the form.');
+        }
+
         var html = '<div id="magedrop-load-notice" style="' +
             'background: #0f172a;' +
             'color: #fff;' +
@@ -25,9 +35,7 @@ define([
             '">' +
             '<span>' +
             '<strong>MageDrop:</strong> ' +
-            $t('%1 field(s) loaded from "%2". Review the changes and save when ready.')
-                .replace('%1', changeCount)
-                .replace('%2', releaseName) +
+            message +
             '</span>' +
             '<a href="' + dismissUrl + '" style="' +
             'color: #fff;' +

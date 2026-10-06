@@ -189,10 +189,19 @@ abstract class AbstractAdapter implements AdapterInterface
         }
     }
 
+    /**
+     * What toFormData() routes fields against. EAV sections only claim fields they can
+     * find as attributes, which needs a model of the entity type (nothing is loaded).
+     */
+    protected function formProbe(): DataObject
+    {
+        return new DataObject();
+    }
+
     public function toFormData(array $data, array $values): array
     {
-        // Form data is not an entity; route by the field name using a bare DataObject
-        $probe = new DataObject();
+        // Form data is not an entity; route by field name against an empty entity of this type
+        $probe = $this->formProbe();
         foreach ($this->sections as $section) {
             $mine = array_filter(
                 $values,

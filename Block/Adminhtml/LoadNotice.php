@@ -14,6 +14,7 @@ use Magento\Backend\Model\Session as BackendSession;
 /**
  * Post-redirect notices on entity edit forms:
  *  - ?magedrop_load=<release>  → banner "N field(s) loaded from release X"
+ *    (with magedrop_preview: the Quick Preview edit put back, or "no longer available")
  *  - ?magedrop_preview=1       → Quick Preview result modal (URL held in the backend session)
  */
 class LoadNotice extends Template
@@ -70,9 +71,10 @@ class LoadNotice extends Template
             'releaseId' => $releaseId,
             'changeCount' => 0,
             'releaseName' => '',
+            'quick' => (bool) $this->getRequest()->getParam('magedrop_preview'),
         ];
 
-        foreach ($this->apiClient->getReleases() as $release) {
+        foreach ($config['quick'] ? [] : $this->apiClient->getReleases() as $release) {
             if ((int) ($release['id'] ?? 0) === $releaseId) {
                 $config['releaseName'] = (string) ($release['name'] ?? '');
                 break;

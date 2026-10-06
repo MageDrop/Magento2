@@ -5,6 +5,15 @@ All notable changes to `MageDrop_Magento2` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.5] - 2026-10-06
+
+### Fixed
+- **Quick Preview keeps your edit in the form.** After a Quick Preview the edit page reloaded from the database, so what you had typed was gone and Save & Stage then found no changes. The page now reloads with the preview loaded back into the form (the same way as Load from Release), ready to Save & Stage. Reloading the page once the preview has expired says it is no longer available and shows the saved values. Needs MageDrop to send the preview's release id (live on magedrop.com); with an older SaaS the form reloads as before.
+- **Load from Release fills product and category forms.** Staged product and category values were never put into the form (the banner counted them, the fields kept their saved values), including after Save & Stage. CMS pages and blocks were not affected.
+
+### Upgrade notes
+- The product adapter has a new constructor dependency: run `bin/magento setup:di:compile` in production mode.
+
 ## [2.0.4] - 2026-10-06
 
 ### Fixed

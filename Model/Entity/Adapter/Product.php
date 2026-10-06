@@ -12,6 +12,7 @@ use Magento\Catalog\Api\ProductRepositoryInterface;
 use Magento\Catalog\Controller\Adminhtml\Product\Initialization\Helper as InitializationHelper;
 use Magento\Catalog\Model\Attribute\ScopeOverriddenValue;
 use Magento\Catalog\Model\Product as ProductModel;
+use Magento\Catalog\Model\ProductFactory;
 use Magento\Catalog\Model\Product\Authorization;
 use Magento\Eav\Model\Entity\Attribute\Backend\JsonEncoded;
 use Magento\Framework\App\RequestInterface;
@@ -48,6 +49,7 @@ class Product extends AbstractAdapter
         private StoreManagerInterface $storeManager,
         private ScopeOverriddenValue $scopeOverriddenValue,
         private FrontendUrlResolver $urlResolver,
+        private ProductFactory $productFactory,
         array $sections = []
     ) {
         parent::__construct(
@@ -128,6 +130,11 @@ class Product extends AbstractAdapter
         }
 
         return $values;
+    }
+
+    protected function formProbe(): DataObject
+    {
+        return $this->productFactory->create();
     }
 
     public function toFormData(array $data, array $values): array

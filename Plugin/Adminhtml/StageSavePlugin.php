@@ -142,7 +142,14 @@ class StageSavePlugin
             'change_count' => (int) ($response['change_count'] ?? $result['change_count']),
         ]);
 
-        return $this->redirectBack($request, ['magedrop_preview' => 1]);
+        // The redirect reloads the form from the database; loading the preview release back
+        // into it (as "Load from Release" does) keeps what the user typed for Save & Stage
+        $params = ['magedrop_preview' => 1];
+        if (!empty($response['release_id'])) {
+            $params['magedrop_load'] = (int) $response['release_id'];
+        }
+
+        return $this->redirectBack($request, $params);
     }
 
     private function redirectBack(RequestInterface $request, array $extraParams = [])
