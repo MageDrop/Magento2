@@ -5,6 +5,11 @@ All notable changes to `MageDrop_Magento2` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.3] - 2026-10-06
+
+### Fixed
+- **Clicking the MageDrop button opens its menu.** The button on CMS page, block, category and product edit forms only opened its menu (Quick Preview, Load from Release, Save & Stage) from the small arrow beside it; clicking the button itself did nothing.
+
 ## [2.0.2] - 2026-10-04
 
 ### Changed

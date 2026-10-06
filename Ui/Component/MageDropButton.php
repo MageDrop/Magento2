@@ -89,6 +89,9 @@ class MageDropButton implements ButtonProviderInterface
         return [
             'label' => __('MageDrop'),
             'class' => 'magedrop-button',
+            'data_attribute' => [
+                'mage-init' => ['MageDrop_Magento2/js/open-menu' => []],
+            ],
             'class_name' => \Magento\Backend\Block\Widget\Button\SplitButton::class,
             'options' => $options,
             'sort_order' => 100,
