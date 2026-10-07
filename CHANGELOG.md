@@ -5,6 +5,11 @@ All notable changes to `MageDrop_Magento2` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.7] - 2026-10-07
+
+### Changed
+- Re-release of 2.0.6 from the repository's republished history; the code is unchanged. Use 2.0.7 rather than 2.0.6 or earlier 2.0.x releases, whose Packagist downloads point at commits no longer on any branch.
+
 ## [2.0.6] - 2026-10-07
 
 ### Fixed
