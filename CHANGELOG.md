@@ -26,6 +26,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Upgrade notes
 - New plugins and constructor dependencies: run `bin/magento setup:di:compile` in production mode.
 
+### Known limitations
+- Add new custom options at the default scope. A release that adds an option and also edits the options at a store view can create that option twice on deploy.
+
 ## [2.0.5] - 2026-10-06
 
 ### Fixed
