@@ -190,6 +190,29 @@ abstract class AbstractAdapter implements AdapterInterface
     }
 
     /**
+     * "Load from Release" for form parts Magento builds from the entity itself (see
+     * LoadsIntoEntityInterface): put the staged values on the entity before the page is built.
+     */
+    public function loadIntoEntity(DataObject $entity, array $values): void
+    {
+        $groups = [];
+        foreach ($values as $field => $value) {
+            foreach ($this->sections as $index => $section) {
+                if ($section->handles((string) $field, $entity)) {
+                    if ($section instanceof Section\LoadsIntoEntityInterface) {
+                        $groups[$index][0] = $section;
+                        $groups[$index][1][$field] = $value;
+                    }
+                    break;
+                }
+            }
+        }
+        foreach ($groups as [$section, $sectionValues]) {
+            $section->loadIntoEntity($entity, $sectionValues);
+        }
+    }
+
+    /**
      * What toFormData() routes fields against. EAV sections only claim fields they can
      * find as attributes, which needs a model of the entity type (nothing is loaded).
      */

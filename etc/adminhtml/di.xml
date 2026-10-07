@@ -118,4 +118,30 @@
                 sortOrder="10"/>
     </type>
 
+    <!-- Load from Release for what Magento builds from the product itself: gallery, link grids, configurable children -->
+    <type name="Magento\Catalog\Controller\Adminhtml\Product\Builder">
+        <plugin name="magedrop_load_into_product"
+                type="MageDrop\Magento2\Plugin\Adminhtml\Product\LoadIntoProductPlugin"/>
+    </type>
+
+    <type name="Magento\Catalog\Api\ProductLinkRepositoryInterface">
+        <plugin name="magedrop_staged_links"
+                type="MageDrop\Magento2\Plugin\Adminhtml\Product\StagedLinksPlugin"/>
+    </type>
+
+    <type name="Magento\Catalog\Model\Attribute\ScopeOverriddenValue">
+        <plugin name="magedrop_scope_overrides"
+                type="MageDrop\Magento2\Plugin\Adminhtml\ScopeOverridesPlugin"/>
+    </type>
+
+    <type name="Magento\Catalog\Model\Category\DataProvider">
+        <plugin name="magedrop_load_into_category"
+                type="MageDrop\Magento2\Plugin\Adminhtml\Category\LoadIntoCategoryPlugin"/>
+    </type>
+
+    <type name="Magento\Catalog\Block\Adminhtml\Product\Helper\Form\Gallery\Content">
+        <plugin name="magedrop_gallery_json"
+                type="MageDrop\Magento2\Plugin\Adminhtml\Product\GalleryJsonPlugin"/>
+    </type>
+
 </config>

@@ -5,6 +5,27 @@ All notable changes to `MageDrop_Magento2` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.6] - 2026-10-07
+
+### Fixed
+- **Load from Release (and the Quick Preview reload) now loads everything into the product and category forms.** Previously images, related/up-sell/cross-sell products, grouped and configurable children and the category's products were not loaded, and a store view's "Use Default Value" boxes kept their saved state (so a staged store-view value could be re-staged as "use default"). The staged values are now put on the product or category the page is built from, so Magento's own gallery, link grids, configurable and grouped panels and scope checkboxes show them:
+  - **Gallery:** labels, positions, hidden flags and every image role (custom media attributes included). Images the release adds appear as fresh uploads (a copy in the tmp media folder), so Save and Save & Stage both work; images it removes stay removed.
+  - **Related, up-sell, cross-sell and grouped products**, with a grouped product's default quantities.
+  - **Configurable children** in the Configurations grid.
+  - **Products in Category** (selection and positions; the grid's position column still shows saved positions, while the staged ones are what is submitted).
+  - **"Use Default Value"** at a store view for products and categories: a staged store-view value unticks it, a staged "use default" ticks it.
+- **Websites and categories load as Magento shows them:** the Product in Websites boxes and the category picker show the release's selection (website ids were previously written into the form in a shape Magento doesn't read).
+- **Save & Stage at a store view no longer re-stages the release's default-scope values there.** A form loaded from a release at a store view shows the release's default-scope values; posted back unchanged they were staged again for that store view. For custom options a new option would then have been created twice on deploy.
+- **Grouped products keep each child's default quantity** when staged and deployed.
+- **No false changes at a store view for drop-down (select-type) custom options:** the store-view form posts a 0 price for the option itself, which isn't used; it is no longer staged.
+- **No false price change on configurable products:** Magento clears the configurable price field, so staging no longer stages an empty price (which would have removed the stored one on deploy).
+
+### For extension developers
+- New `LoadsIntoEntityInterface` for sections whose admin form part Magento builds from the entity rather than the form data (see the developer guide, "Custom data and extensions").
+
+### Upgrade notes
+- New plugins and constructor dependencies: run `bin/magento setup:di:compile` in production mode.
+
 ## [2.0.5] - 2026-10-06
 
 ### Fixed

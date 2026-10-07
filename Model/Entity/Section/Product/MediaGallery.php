@@ -6,6 +6,7 @@ namespace MageDrop\Magento2\Model\Entity\Section\Product;
 
 use MageDrop\Magento2\Model\Entity\Section\AfterSaveInterface;
 use MageDrop\Magento2\Model\Entity\Section\CapturesPreviousInterface;
+use MageDrop\Magento2\Model\Entity\Section\LoadsIntoEntityInterface;
 use MageDrop\Magento2\Model\Entity\Section\SectionHandlerInterface;
 use MageDrop\Magento2\Model\Entity\Value;
 use MageDrop\Magento2\Model\Media\StagedMediaLog;
@@ -38,7 +39,7 @@ use Magento\Store\Model\Store;
  * rollback impossible); the normal product save then handles labels,
  * positions and roles at the requested store scope.
  */
-class MediaGallery implements SectionHandlerInterface, CapturesPreviousInterface, AfterSaveInterface
+class MediaGallery implements SectionHandlerInterface, CapturesPreviousInterface, AfterSaveInterface, LoadsIntoEntityInterface
 {
     public const FIELD = 'media_gallery';
 
@@ -495,43 +496,136 @@ class MediaGallery implements SectionHandlerInterface, CapturesPreviousInterface
         }
     }
 
+    /**
+     * The admin gallery is not built from the form data but from the product (see
+     * loadIntoEntity()), so there is nothing to put into the form here.
+     */
     public function toFormData(array $data, array $values): array
     {
-        if (!isset($values[self::FIELD]) || $values[self::FIELD]->isInherit()) {
-            return $data;
+        return $data;
+    }
+
+    /**
+     * "Load from Release" / Quick Preview reload: put the staged gallery on the product the
+     * admin edit page is built from, so Magento's own gallery shows it and posts it (images,
+     * labels, positions, hidden flags and every image role, custom media attributes included).
+     * Images the release adds are presented as fresh uploads: a copy in the tmp media folder
+     * under a ".tmp" name, which Save and Save & Stage both move into place.
+     *
+     * Existing images the release removes stay in the gallery data flagged "removed", so Save and
+     * Save & Stage both remove them; GalleryJsonPlugin keeps them out of the visible gallery.
+     */
+    public function loadIntoEntity(DataObject $product, array $values): void
+    {
+        if (!$product instanceof Product || !isset($values[self::FIELD]) || $values[self::FIELD]->isInherit()) {
+            return;
         }
         $staged = is_array($values[self::FIELD]->value) ? $values[self::FIELD]->value : [];
+        $storeId = (int) $product->getStoreId();
+
+        $gallery = $product->getData(self::FIELD);
+        $current = [];
+        foreach ((is_array($gallery) && is_array($gallery['images'] ?? null) ? $gallery['images'] : []) as $image) {
+            if (is_array($image) && !empty($image['value_id'])) {
+                $current[(int) $image['value_id']] = $image;
+            }
+        }
+        $storeValues = $storeId !== Store::DEFAULT_STORE_ID ? $this->storeImageValues($product) : [];
+        // Staged for this store view itself (e.g. a Quick Preview made at the view): the values are
+        // the view's own; otherwise they are the default scope's and a view's own row still wins
+        $stagedAtView = !empty(((array) $product->getData(self::SCOPE_OVERRIDES))[self::FIELD]);
 
         $images = [];
         $roles = [];
-        $i = 0;
+        $kept = [];
+        $new = 0;
         foreach ($staged as $entry) {
             if (!is_array($entry) || empty($entry['file'])) {
                 continue;
             }
-            $key = !empty($entry['value_id']) ? (string) $entry['value_id'] : 'magedrop_' . $i++;
-            $images[$key] = [
-                'value_id' => $entry['value_id'] ?? null,
-                'file' => (string) $entry['file'],
-                'media_type' => (string) ($entry['media_type'] ?? 'image'),
+            $valueId = !empty($entry['value_id']) ? (int) $entry['value_id'] : 0;
+            $imageValues = [
                 'label' => (string) ($entry['label'] ?? ''),
                 'position' => (string) ((int) ($entry['position'] ?? 0)),
                 'disabled' => !empty($entry['disabled']) ? '1' : '0',
-                'url' => $this->mediaConfig->getMediaUrl((string) $entry['file']),
-            ] + $this->extras($entry);
+            ];
+            if ($valueId && isset($current[$valueId])) {
+                $kept[$valueId] = true;
+                $key = (string) $valueId;
+                $image = $current[$valueId];
+                $file = (string) $image['file'];
+                foreach ($imageValues as $name => $value) {
+                    if ($stagedAtView) {
+                        $image[$name] = $value;
+                        continue;
+                    }
+                    $image[$name . '_default'] = $value;
+                    $image[$name] = array_key_exists($name, $storeValues[$valueId] ?? [])
+                        ? (string) $storeValues[$valueId][$name]
+                        : $value;
+                }
+            } else {
+                $file = $this->copyToTmp((string) $entry['file']);
+                if ($file === null) {
+                    continue;
+                }
+                $key = 'magedrop_new_' . $new++;
+                // file_id: the gallery keys its inputs by it, matching this key in the form data
+                $image = ['value_id' => '', 'file_id' => $key, 'file' => $file, 'media_type' => (string) ($entry['media_type'] ?? 'image'), 'removed' => '']
+                    + $imageValues;
+            }
+            $images[$key] = $this->extras($entry) + $image;
             foreach ((array) ($entry['roles'] ?? []) as $role) {
                 if (in_array($role, $this->roles(), true)) {
-                    $roles[$role] = (string) $entry['file'];
+                    $roles[$role] = $file;
+                    $roles[$role . '_label'] = $imageValues['label'];
                 }
             }
         }
 
-        $data[self::FIELD] = ['images' => $images];
-        foreach ($this->roles() as $role) {
-            $data[$role] = $roles[$role] ?? 'no_selection';
+        foreach ($current as $valueId => $image) {
+            if (!isset($kept[$valueId])) {
+                $images[(string) $valueId] = ['removed' => '1'] + $image;
+            }
         }
 
-        return $data;
+        uasort($images, fn (array $a, array $b) => (int) $a['position'] <=> (int) $b['position']);
+        $product->setData(self::FIELD, ['images' => $images, 'values' => []]);
+        foreach ($this->roles() as $role) {
+            if (!$stagedAtView && $storeId !== Store::DEFAULT_STORE_ID
+                && $this->scopeOverriddenValue->containsValue(ProductInterface::class, $product, $role, $storeId)
+            ) {
+                continue; // default-scope change: the store view keeps its own role image
+            }
+            $product->setData($role, $roles[$role] ?? 'no_selection');
+            $product->setData($role . '_label', $roles[$role . '_label'] ?? null);
+        }
+    }
+
+    /**
+     * Copy an image the release added (already at its final media path) into the tmp media
+     * folder, as if it had just been uploaded. Returns the ".tmp" gallery file name.
+     */
+    private function copyToTmp(string $file): ?string
+    {
+        $file = '/' . ltrim(str_replace('\\', '/', $file), '/');
+        $mediaDirectory = $this->filesystem->getDirectoryWrite(DirectoryList::MEDIA);
+        $source = $this->mediaConfig->getMediaPath($file);
+        $target = $this->mediaConfig->getTmpMediaPath($file);
+        if ($this->fileStorageDb->checkDbUsage() && !$mediaDirectory->isFile($source)) {
+            $this->fileStorageDb->saveFileToFilesystem($source);
+        }
+        if (!$mediaDirectory->isFile($source)) {
+            return null;
+        }
+        if (!$mediaDirectory->isFile($target)) {
+            $mediaDirectory->copyFile($source, $target);
+            if ($this->fileStorageDb->checkDbUsage()) {
+                $this->fileStorageDb->saveFile($target);
+            }
+        }
+
+        return $file . '.tmp';
     }
 
     /**

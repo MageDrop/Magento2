@@ -21,6 +21,9 @@ class ApiClient
     public const VERSION_HEADER = 'X-MageDrop-Module-Version';
     private const XML_PATH_API_URL = 'magedrop/general/api_url';
 
+    /** @var array<string, array> getPreviewChanges() results for this request */
+    private array $previewChanges = [];
+
     public function __construct(
         private ScopeConfigInterface $scopeConfig,
         private EncryptorInterface $encryptor,
@@ -81,13 +84,18 @@ class ApiClient
      */
     public function getPreviewChanges(int $releaseId, string $entityType, string $entityId): array
     {
-        $response = $this->request('POST', 'preview', [
-            'release_id' => $releaseId,
-            'entity_type' => $entityType,
-            'entity_id' => $entityId,
-        ]);
+        // Asked several times per edit page (form data, product/category, load notice): once per request
+        $key = $releaseId . '|' . $entityType . '|' . $entityId;
+        if (!array_key_exists($key, $this->previewChanges)) {
+            $response = $this->request('POST', 'preview', [
+                'release_id' => $releaseId,
+                'entity_type' => $entityType,
+                'entity_id' => $entityId,
+            ]);
+            $this->previewChanges[$key] = $this->normaliseGroups($response['groups'] ?? []);
+        }
 
-        return $this->normaliseGroups($response['groups'] ?? []);
+        return $this->previewChanges[$key];
     }
 
     /**

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MageDrop\Magento2\Model\Entity\Section\Product;
 
+use MageDrop\Magento2\Model\Entity\Section\LoadsIntoEntityInterface;
 use MageDrop\Magento2\Model\Entity\Section\SectionHandlerInterface;
 use MageDrop\Magento2\Model\Entity\Value;
 use Magento\Catalog\Model\Product;
@@ -19,7 +20,7 @@ use Magento\Framework\DataObject;
  * brand-new variations cannot be staged because Magento would have to create
  * the child products first.
  */
-class ConfigurableLinks implements SectionHandlerInterface
+class ConfigurableLinks implements SectionHandlerInterface, LoadsIntoEntityInterface
 {
     public const FIELD = 'configurable_links';
 
@@ -107,9 +108,34 @@ class ConfigurableLinks implements SectionHandlerInterface
     {
     }
 
+    /**
+     * The "Configurations" grid is built from the product (see loadIntoEntity()).
+     */
     public function toFormData(array $data, array $values): array
     {
         return $data;
+    }
+
+    /**
+     * "Load from Release": the configurable panel builds its grid from the product's
+     * associated product ids when they are set (AssociatedProducts::_getAssociatedProducts,
+     * "form data overrides any relations stored in database"), so set the staged children.
+     */
+    public function loadIntoEntity(DataObject $product, array $values): void
+    {
+        if (!$product instanceof Product || !isset($values[self::FIELD]) || $values[self::FIELD]->isInherit()
+            || $product->getTypeId() !== Configurable::TYPE_CODE
+        ) {
+            return;
+        }
+        $staged = $this->normalise(
+            (array) ($values[self::FIELD]->value['attributes'] ?? []),
+            (array) ($values[self::FIELD]->value['products'] ?? [])
+        );
+        // The data key the panel reads (getAssociatedProductIds()); Product::setAssociatedProductIds()
+        // writes the configurable_product_links extension attribute instead, which the panel ignores
+        // (as strings, like the ids Magento loads: the panel's scripts compare them as strings)
+        $product->setData('associated_product_ids', array_map('strval', $staged['products']));
     }
 
     /**

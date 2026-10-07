@@ -6,6 +6,7 @@ namespace MageDrop\Magento2\Model\Entity\Section\Product;
 
 use MageDrop\Magento2\Model\Entity\Section\AfterSaveInterface;
 use MageDrop\Magento2\Model\Entity\Section\CapturesPreviousInterface;
+use MageDrop\Magento2\Model\Entity\Section\LoadsIntoEntityInterface;
 use MageDrop\Magento2\Model\Entity\Section\SectionHandlerInterface;
 use MageDrop\Magento2\Model\Entity\Value;
 use Magento\Catalog\Model\Product;
@@ -19,7 +20,7 @@ use Magento\Framework\DataObject;
  * rollback is a list of {category_id, position} records and applying it restores the
  * positions too.
  */
-class Assignments implements SectionHandlerInterface, CapturesPreviousInterface, AfterSaveInterface
+class Assignments implements SectionHandlerInterface, CapturesPreviousInterface, AfterSaveInterface, LoadsIntoEntityInterface
 {
     public const FIELDS = ['category_ids', 'website_ids'];
 
@@ -169,15 +170,29 @@ class Assignments implements SectionHandlerInterface, CapturesPreviousInterface,
         // Listing membership is index driven; nothing meaningful to overlay in-memory.
     }
 
+    /**
+     * The category tree and the website checkboxes are built from the product's
+     * getCategoryIds() / getWebsiteIds() (see loadIntoEntity()).
+     */
     public function toFormData(array $data, array $values): array
     {
+        return $data;
+    }
+
+    /**
+     * "Load from Release": Magento's form reads the product's category and website ids
+     * (the Websites modifier ticks its checkboxes from getWebsiteIds() in the form metadata).
+     */
+    public function loadIntoEntity(DataObject $entity, array $values): void
+    {
+        if (!$entity instanceof Product) {
+            return;
+        }
         foreach ($values as $field => $value) {
-            if (!$value->isInherit()) {
-                $data[$field] = array_map('strval', $this->normalise((array) $value->value));
+            if (in_array($field, self::FIELDS, true) && !$value->isInherit()) {
+                $entity->setData($field, array_map('strval', $this->normalise((array) $value->value)));
             }
         }
-
-        return $data;
     }
 
     /**

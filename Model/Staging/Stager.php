@@ -8,6 +8,7 @@ use MageDrop\Magento2\Model\Entity\AdapterInterface;
 use MageDrop\Magento2\Model\Entity\AdapterPool;
 use MageDrop\Magento2\Model\Entity\Differ;
 use MageDrop\Magento2\Model\Entity\Value;
+use MageDrop\Magento2\Model\Preview\ReleaseValues;
 use MageDrop\Magento2\Model\Service\ApiClient;
 use Magento\Framework\App\RequestInterface;
 use Magento\Framework\Exception\LocalizedException;
@@ -23,7 +24,8 @@ class Stager
         private AdapterPool $adapterPool,
         private Differ $differ,
         private ApiClient $apiClient,
-        private StoreManagerInterface $storeManager
+        private StoreManagerInterface $storeManager,
+        private ReleaseValues $releaseValues
     ) {
     }
 
@@ -45,10 +47,32 @@ class Stager
         $scoped['changes'] = [];
         $global['changes'] = [];
         $global['store_id'] = Store::DEFAULT_STORE_ID;
+        $releaseDefaults = null;
+        $releaseAtView = null;
         foreach ($delta['changes'] as $change) {
             $isScoped = $delta['store_id'] !== Store::DEFAULT_STORE_ID
                 && ($change['staged']->isInherit() || $delta['adapter']->isScopable($delta['entity'], $change['field']));
             if ($isScoped) {
+                // A form loaded from this release at a store view shows the release's default-scope
+                // values; posted back unchanged they are not a store-view edit (custom options would
+                // otherwise be staged again at the view and a new option created twice on deploy)
+                $releaseDefaults ??= $this->releaseValues->get(
+                    $releaseId,
+                    $delta['adapter']->getCode(),
+                    (string) $delta['entity_id'],
+                    Store::DEFAULT_STORE_ID
+                );
+                $releaseAtView ??= $this->releaseValues->storeOverrides(
+                    $releaseId,
+                    $delta['adapter']->getCode(),
+                    (string) $delta['entity_id'],
+                    $delta['store_id']
+                );
+                $default = $releaseDefaults[$change['field']] ?? null;
+                if ($default !== null && !isset($releaseAtView[$change['field']])
+                    && !$change['staged']->isInherit() && $default->equals($change['staged'])) {
+                    continue;
+                }
                 $scoped['changes'][] = $change;
             } else {
                 $global['changes'][] = $change;

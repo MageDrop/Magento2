@@ -33,6 +33,7 @@ class CustomOptions implements SectionHandlerInterface
 
     private const OPTION_KEYS = ['type', 'title', 'is_require', 'sort_order', 'price', 'price_type', 'sku', 'max_characters', 'file_extension', 'image_size_x', 'image_size_y'];
     private const VALUE_KEYS = ['title', 'price', 'price_type', 'sku', 'sort_order'];
+    private const SELECT_TYPES = ['drop_down', 'radio', 'checkbox', 'multiple'];
 
     public function __construct(
         private ProductCustomOptionInterfaceFactory $customOptionFactory,
@@ -248,6 +249,12 @@ class CustomOptions implements SectionHandlerInterface
             $entry = ['option_id' => !empty($raw['option_id']) ? (int) $raw['option_id'] : null];
             foreach (self::OPTION_KEYS as $key) {
                 $entry[$key] = $this->scalar($raw[$key] ?? null, $key);
+            }
+            // Select types (drop-down, radio, checkbox, multiple) are priced per value; the option's
+            // own price is unused, and the store-view form posts 0/fixed for it where none is saved
+            if (in_array($entry['type'], self::SELECT_TYPES, true)) {
+                $entry['price'] = null;
+                $entry['price_type'] = '';
             }
             $values = [];
             $rawValues = $option instanceof Option ? ($option->getValues() ?: $option->getData('values')) : ($raw['values'] ?? null);

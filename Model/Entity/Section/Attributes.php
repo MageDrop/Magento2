@@ -240,6 +240,9 @@ class Attributes implements SectionHandlerInterface
                 continue;
             }
             $data[$field] = $value->forModel();
+            // A staged store-view value is an override: untick "Use Default Value", or the field
+            // stays disabled and Save & Stage turns it back into "inherit"
+            $data['use_default'][$field] = 0;
         }
 
         return $data;

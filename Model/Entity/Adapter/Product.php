@@ -118,6 +118,11 @@ class Product extends AbstractAdapter
         });
 
         $data = $formProduct->getData();
+        // Magento's configurable price field is disabled and cleared (price-configurable.js), so
+        // the form always posts an empty price: that is what the form shows, not an edit
+        if ($formProduct->getTypeId() === 'configurable' && (string) ($productData['price'] ?? '') === '') {
+            unset($data['price']);
+        }
         $data['use_default'] = is_array($post['use_default'] ?? null) ? $post['use_default'] : [];
         $data[self::DATA_RAW_POST] = $post;
         $data[self::DATA_FORM_PRODUCT] = $formProduct;

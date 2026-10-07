@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MageDrop\Magento2\Model\Entity\Section\Category;
 
+use MageDrop\Magento2\Model\Entity\Section\LoadsIntoEntityInterface;
 use MageDrop\Magento2\Model\Entity\Section\SectionHandlerInterface;
 use MageDrop\Magento2\Model\Entity\Value;
 use Magento\Catalog\Model\Category;
@@ -14,7 +15,7 @@ use Magento\Framework\DataObject;
  * grid posts, applied through Category::setPostedProducts() so the resource
  * model rewrites catalog_category_product on save. Global scope.
  */
-class Products implements SectionHandlerInterface
+class Products implements SectionHandlerInterface, LoadsIntoEntityInterface
 {
     public const FIELD = 'category_products';
 
@@ -84,6 +85,18 @@ class Products implements SectionHandlerInterface
     public function overlay(DataObject $entity, array $values): void
     {
         // Listing membership comes from the search index; nothing to overlay in-memory.
+    }
+
+    /**
+     * "Load from Release": the "Products in Category" grid and its hidden input read the
+     * category's product positions (Category::getProductsPosition() caches them on the model).
+     */
+    public function loadIntoEntity(DataObject $entity, array $values): void
+    {
+        if (!$entity instanceof Category || !isset($values[self::FIELD]) || $values[self::FIELD]->isInherit()) {
+            return;
+        }
+        $entity->setData('products_position', $this->normalise((array) $values[self::FIELD]->value));
     }
 
     public function toFormData(array $data, array $values): array
